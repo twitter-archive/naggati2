@@ -127,11 +127,10 @@ object Stages {
    * Read a line, terminated by LF or CR/LF, and pass that line as a string to the next processing
    * step.
    *
-   * @param removeLF true if the LF or CRLF should be stripped from the
-   *   string before passing it on
+   * @param removeLF true if the LF or CRLF should be stripped from the string before passing it on
    * @param encoding byte-to-character encoding to use
    */
-  final def readLine(removeLF: Boolean, encoding: String)(process: String => NextStep) = {
+  final def readLine(removeLF: Boolean, encoding: String)(process: String => NextStep): Stage = {
     ensureDelimiter('\n'.toByte) { (n, buffer) =>
       val end = if ((n > 1) && (buffer.getByte(buffer.readerIndex + n - 2) == '\r'.toByte)) {
         n - 2
@@ -143,4 +142,19 @@ object Stages {
       process(new String(byteBuffer, 0, (if (removeLF) end else n), encoding))
     }
   }
+
+  /**
+   * Read a line, terminated by LF or CRLF, and pass that line as a string (decoded using
+   * UTF-8) to the next processing step.
+   *
+   * @param removeLF true if the LF or CRLF should be stripped from the string before passing it on
+   */
+  final def readLine(removeLF: Boolean)(process: String => NextStep): Stage =
+    readLine(removeLF, "UTF-8")(process)
+
+  /**
+   * Read a line, terminated by LF or CRLF, and pass that line as a string (decoded using
+   * UTF-8, with the line terminators stripped) to the next processing step.
+   */
+  def readLine(process: String => NextStep): Stage = readLine(true, "UTF-8")(process)
 }
