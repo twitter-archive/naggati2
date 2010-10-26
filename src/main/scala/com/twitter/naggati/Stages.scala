@@ -26,9 +26,19 @@ object Stages {
     def apply(buffer: ChannelBuffer) = f(buffer)
   }
 
+  /**
+   * Wrap a Stage. The wrapped stage will be regenerated on each call.
+   */
   final def proxy(stage: => Stage): Stage = new Stage {
     def apply(buffer: ChannelBuffer) = stage.apply(buffer)
   }
+
+  /**
+   * Allow a decoder to return a Stage when we expected a NextStep.
+   */
+  implicit final def stageToNextStep(stage: Stage) = GoToStage(stage)
+
+  final def emit(obj: AnyRef) = Emit(obj)
 
   /**
    * Ensure that a certain number of bytes is buffered before executing the next step, calling
@@ -68,6 +78,48 @@ object Stages {
       val bytes = new Array[Byte](count)
       buffer.readBytes(bytes)
       process(bytes)
+    }
+  }
+
+  /**
+   * Read bytes until a delimiter is present. The number of bytes up to and including the delimiter
+   * is passed to the next processing step. `getDelimiter` is called each time new data arrives.
+   */
+  final def ensureDelimiterDynamic(getDelimiter: => Byte)(process: (Int, ChannelBuffer) => NextStep) = proxy {
+    ensureDelimiter(getDelimiter)(process)
+  }
+
+  /**
+   * Read bytes until a delimiter is present. The number of bytes up to and including the delimiter
+   * is passed to the next processing step.
+   */
+  final def ensureDelimiter(delimiter: Byte)(process: (Int, ChannelBuffer) => NextStep) = stage { buffer =>
+    val n = buffer.bytesBefore(delimiter)
+    if (n < 0) {
+      Incomplete
+    } else {
+      process(n + 1, buffer)
+    }
+  }
+
+  /**
+   * Read a line, terminated by LF or CR/LF, and pass that line as a string to the next processing
+   * step.
+   *
+   * @param removeLF true if the LF or CRLF should be stripped from the
+   *   string before passing it on
+   * @param encoding byte-to-character encoding to use
+   */
+  final def readLine(removeLF: Boolean, encoding: String)(process: String => NextStep) = {
+    ensureDelimiter('\n'.toByte) { (n, buffer) =>
+      val end = if ((n > 1) && (buffer.getByte(buffer.readerIndex + n - 2) == '\r'.toByte)) {
+        n - 2
+      } else {
+        n - 1
+      }
+      val byteBuffer = new Array[Byte](n)
+      buffer.readBytes(byteBuffer)
+      process(new String(byteBuffer, 0, (if (removeLF) end else n), encoding))
     }
   }
 }

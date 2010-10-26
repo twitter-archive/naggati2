@@ -16,9 +16,10 @@
 
 package com.twitter.naggati
 
-import org.jboss.netty.buffer.ChannelBuffer
+import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.specs.Specification
 import org.specs.mock.JMocker
+import Stages._
 
 class StagesSpec extends Specification with JMocker {
   "Stages" should {
@@ -27,8 +28,8 @@ class StagesSpec extends Specification with JMocker {
     "ensureBytes" in {
       "dynamic" in {
         var calls = 0
-        val stage = Stages.ensureBytesDynamic({ calls += 1; 4 }) { buffer =>
-          Emit("hello")
+        val stage = ensureBytesDynamic({ calls += 1; 4 }) { buffer =>
+          emit("hello")
         }
 
         expect {
@@ -45,8 +46,8 @@ class StagesSpec extends Specification with JMocker {
       }
 
       "static" in {
-        val stage = Stages.ensureBytes(4) { buffer =>
-          Emit("hello")
+        val stage = ensureBytes(4) { buffer =>
+          emit("hello")
         }
 
         expect {
@@ -64,8 +65,8 @@ class StagesSpec extends Specification with JMocker {
     "readBytes" in {
       "dynamic" in {
         var calls = 0
-        val stage = Stages.readBytesDynamic({ calls += 1; 4 }) { buffer =>
-          Emit("hello")
+        val stage = readBytesDynamic({ calls += 1; 4 }) { buffer =>
+          emit("hello")
         }
 
         expect {
@@ -83,8 +84,8 @@ class StagesSpec extends Specification with JMocker {
       }
 
       "static" in {
-        val stage = Stages.readBytes(4) { buffer =>
-          Emit("hello")
+        val stage = readBytes(4) { buffer =>
+          emit("hello")
         }
 
         expect {
@@ -98,6 +99,16 @@ class StagesSpec extends Specification with JMocker {
         }
         stage(buffer) mustEqual Emit("hello")
       }
+    }
+
+    "readLine" in {
+      def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)
+
+      val stage = readLine(true, "UTF-8") { line => emit(line) }
+
+      stage(wrap("hello there\r\ncat")) mustEqual Emit("hello there")
+      stage(wrap("cats don't use CR\n")) mustEqual Emit("cats don't use CR")
+      stage(wrap("okay.")) mustEqual Incomplete
     }
   }
 }

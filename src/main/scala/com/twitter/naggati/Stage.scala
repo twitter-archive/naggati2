@@ -28,7 +28,6 @@ sealed trait NextStep
 case object Incomplete extends NextStep
 case class GoToStage(stage: Stage) extends NextStep
 case class Emit(obj: AnyRef) extends NextStep
-case object Done extends NextStep
 
 /**
  * A decoder stage.
