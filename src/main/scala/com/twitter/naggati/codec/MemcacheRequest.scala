@@ -19,12 +19,12 @@ package codec
 
 import Stages._
 
-case class MemcacheRequest(line: List[String], data: Option[Array[Byte]]) {
+case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesRead: Int) {
   override def toString = {
     "<Request: " + line.mkString("[", " ", "]") + (data match {
       case None => ""
-      case Some(x) => ": " + x.size + " bytes"
-    }) + ">"
+      case Some(x) => " data=" + x.size
+    }) + " read=" + bytesRead + ">"
   }
 }
 
@@ -33,9 +33,7 @@ object MemcacheRequest {
 
   def asciiDecoder = new Decoder(readAscii)
 
-  val readAscii = readLine(true, "ISO-8859-1") { line =>
-    // KestrelStats.bytesRead.incr(line.length + 1)
-
+  def readAscii() = readLine(true, "ISO-8859-1") { line =>
     val segments = line.split(" ")
     segments(0) = segments(0).toLowerCase
 
@@ -46,15 +44,14 @@ object MemcacheRequest {
       }
       val dataBytes = segments(4).toInt
       ensureBytes(dataBytes + 2) { buffer =>
-        // KestrelStats.bytesRead.incr(dataBytes + 2)
         // final 2 bytes are just "\r\n" mandated by protocol.
         val bytes = new Array[Byte](dataBytes)
         buffer.readBytes(bytes)
         buffer.skipBytes(2)
-        emit(MemcacheRequest(segments.toList, Some(bytes)))
+        emit(MemcacheRequest(segments.toList, Some(bytes), line.length + dataBytes + 4))
       }
     } else {
-      emit(MemcacheRequest(segments.toList, None))
+      emit(MemcacheRequest(segments.toList, None, line.length + 2))
     }
   }
 }

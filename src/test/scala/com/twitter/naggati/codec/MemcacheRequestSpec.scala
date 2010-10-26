@@ -27,30 +27,30 @@ class MemcacheRequestSpec extends Specification {
     "get request" in {
       val decoder = new TestDecoder(MemcacheRequest.asciiDecoder)
 
-      decoder(wrap("get foo\r\n")) mustEqual List(MemcacheRequest(List("get", "foo"), None))
+      decoder(wrap("get foo\r\n")) mustEqual List(MemcacheRequest(List("get", "foo"), None, 9))
       decoder(wrap("get f")) mustEqual Nil
-      decoder(wrap("oo\r\n")) mustEqual List(MemcacheRequest(List("get", "foo"), None))
+      decoder(wrap("oo\r\n")) mustEqual List(MemcacheRequest(List("get", "foo"), None, 9))
 
       decoder(wrap("g")) mustEqual Nil
       decoder(wrap("et foo\r")) mustEqual Nil
-      decoder(wrap("\nget ")) mustEqual List(MemcacheRequest(List("get", "foo"), None))
-      decoder(wrap("bar\r\n")) mustEqual List(MemcacheRequest(List("get", "bar"), None))
+      decoder(wrap("\nget ")) mustEqual List(MemcacheRequest(List("get", "foo"), None, 9))
+      decoder(wrap("bar\r\n")) mustEqual List(MemcacheRequest(List("get", "bar"), None, 9))
     }
 
     "set request" in {
       val decoder = new TestDecoder(MemcacheRequest.asciiDecoder)
 
-      decoder(wrap("set foo 0 0 5\r\nhello\r\n")).map(_.toString) mustEqual List("<Request: [set foo 0 0 5]: 5 bytes>")
+      decoder(wrap("set foo 0 0 5\r\nhello\r\n")).map(_.toString) mustEqual List("<Request: [set foo 0 0 5] data=5 read=22>")
       decoder(wrap("set foo 0 0 5\r\n")).map(_.toString) mustEqual Nil
-      decoder(wrap("hello\r\n")).map(_.toString) mustEqual List("<Request: [set foo 0 0 5]: 5 bytes>")
+      decoder(wrap("hello\r\n")).map(_.toString) mustEqual List("<Request: [set foo 0 0 5] data=5 read=22>")
       decoder(wrap("set foo 0 0 5")).map(_.toString) mustEqual Nil
       decoder(wrap("\r\nhell")).map(_.toString) mustEqual Nil
-      decoder(wrap("o\r\n")).map(_.toString) mustEqual List("<Request: [set foo 0 0 5]: 5 bytes>")
+      decoder(wrap("o\r\n")).map(_.toString) mustEqual List("<Request: [set foo 0 0 5] data=5 read=22>")
     }
 
     "quit request" in {
       val decoder = new TestDecoder(MemcacheRequest.asciiDecoder)
-      decoder(wrap("QUIT\r\n")) mustEqual List(MemcacheRequest(List("quit"), None))
+      decoder(wrap("QUIT\r\n")) mustEqual List(MemcacheRequest(List("quit"), None, 6))
     }
   }
 }
