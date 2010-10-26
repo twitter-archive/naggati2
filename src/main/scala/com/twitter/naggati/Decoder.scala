@@ -18,17 +18,20 @@ package com.twitter.naggati
 
 import scala.annotation.tailrec
 import org.jboss.netty.buffer.ChannelBuffer
-import org.jboss.netty.channel.{Channel, ChannelHandlerContext}
+import org.jboss.netty.channel.{Channel, ChannelHandler, ChannelHandlerContext}
 import org.jboss.netty.handler.codec.frame.FrameDecoder
 
 /*
  * Convenience exception class to allow decoders to indicate a protocol error.
  */
-class ProtocolError(message: String) extends Exception(message)
+class ProtocolError(message: String, cause: Throwable) extends Exception(message, cause) {
+  def this(message: String) = this(message, null)
+}
 
 /**
  * A netty ChannelHandler for decoding data into protocol objects.
  */
+@ChannelHandler.Sharable
 class Decoder(firstStage: Stage) extends FrameDecoder {
   @tailrec
   override final def decode(context: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer) = {
