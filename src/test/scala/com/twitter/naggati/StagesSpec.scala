@@ -101,6 +101,43 @@ class StagesSpec extends Specification with JMocker {
       }
     }
 
+    "ensureDelimiter" in {
+      "dynamic" in {
+        var calls = 0
+        val stage = ensureDelimiterDynamic({ calls += 1; 32.toByte }) { (n, bytes) =>
+          emit("hello" + n)
+        }
+
+        expect {
+          one(buffer).bytesBefore(32.toByte) willReturn -1
+        }
+        stage(buffer) mustEqual Incomplete
+        calls mustEqual 1
+
+        expect {
+          one(buffer).bytesBefore(32.toByte) willReturn 3
+        }
+        stage(buffer) mustEqual Emit("hello4")
+        calls mustEqual 2
+      }
+
+      "static" in {
+        val stage = ensureDelimiter(32.toByte) { (n, bytes) =>
+          emit("hello" + n)
+        }
+
+        expect {
+          one(buffer).bytesBefore(32.toByte) willReturn -1
+        }
+        stage(buffer) mustEqual Incomplete
+
+        expect {
+          one(buffer).bytesBefore(32.toByte) willReturn 3
+        }
+        stage(buffer) mustEqual Emit("hello4")
+      }
+    }
+
     "readLine" in {
       def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)
 

@@ -103,6 +103,27 @@ object Stages {
   }
 
   /**
+   * Read bytes until a delimiter is present, and pass a buffer containing the bytes up to and
+   * including the delimiter to the next processing step. `getDelimiter` is called each time new
+   * data arrives.
+   */
+  final def readToDelimiterDynamic(getDelimiter: => Byte)(process: Array[Byte] => NextStep) = proxy {
+    readToDelimiter(getDelimiter)(process)
+  }
+
+  /**
+   * Read bytes until a delimiter is present, and pass a buffer containing the bytes up to and
+   * including the delimiter to the next processing step.
+   */
+  final def readToDelimiter(delimiter: Byte)(process: (Array[Byte]) => NextStep) = stage { buffer =>
+    ensureDelimiter(delimiter) { (n, buffer) =>
+      val byteBuffer = new Array[Byte](n)
+      buffer.readBytes(byteBuffer)
+      process(byteBuffer)
+    }
+  }
+
+  /**
    * Read a line, terminated by LF or CR/LF, and pass that line as a string to the next processing
    * step.
    *

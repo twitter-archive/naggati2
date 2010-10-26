@@ -25,6 +25,30 @@ class DecoderSpec extends Specification with JMocker {
   def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)
 
   "Decoder" should {
+    "read a fixed number of bytes" in {
+      val decoder = new TestDecoder(readBytes(4) { bytes => emit(new String(bytes)) })
+
+      decoder(wrap("12")) mustEqual Nil
+      decoder(wrap("345")) mustEqual List("1234")
+      decoder(wrap("6789")) mustEqual List("5678")
+      decoder(wrap("ABCDEFGHIJKLM")) mustEqual List("9ABC", "DEFG", "HIJK")
+      decoder(wrap("N")) mustEqual Nil
+      decoder(wrap("O")) mustEqual List("LMNO")
+      decoder(wrap("PQRS")) mustEqual List("PQRS")
+    }
+
+    "read up to a delimiter, in chunks" in {
+      val decoder = new TestDecoder(readToDelimiter('\n'.toByte) { bytes => emit(new String(bytes)) })
+
+      decoder(wrap("partia")) mustEqual Nil
+      decoder(wrap("l\nand")) mustEqual List("partial\n")
+      decoder(wrap(" another\nbut the")) mustEqual List("and another\n")
+      decoder(wrap("n\nmany\nnew ones\nbo")) mustEqual List("but then\n", "many\n", "new ones\n")
+      decoder(wrap("re")) mustEqual Nil
+      decoder(wrap("d now\n")) mustEqual List("bored now\n")
+      decoder(wrap("bye\n")) mustEqual List("bye\n")
+    }
+
     "read a line" in {
       "strip linefeeds" in {
         val decoder = new TestDecoder(readLine(true, "UTF-8") { line => emit(line) })
