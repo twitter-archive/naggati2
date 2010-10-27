@@ -40,7 +40,15 @@ class Decoder(firstStage: Stage) extends FrameDecoder {
       case attachment => attachment.asInstanceOf[Stage]
     }
 
-    stage(buffer) match {
+    val nextStep = try {
+      stage(buffer)
+    } catch {
+      case e: Throwable =>
+        // reset state before throwing.
+        context.setAttachment(firstStage)
+        throw e
+    }
+    nextStep match {
       case Incomplete =>
         null
       case GoToStage(s) =>
