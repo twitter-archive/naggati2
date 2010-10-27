@@ -16,8 +16,8 @@
 
 package com.twitter.naggati
 
-import scala.actors.Actor
 import scala.collection.immutable
+import com.twitter.actors.Actor
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.timeout.{IdleState, IdleStateAwareChannelUpstreamHandler, IdleStateEvent}
 
@@ -26,7 +26,7 @@ import org.jboss.netty.handler.timeout.{IdleState, IdleStateAwareChannelUpstream
  */
 abstract sealed class NettyMessage
 object NettyMessage {
-  case class ChannelConnected() extends NettyMessage
+  case class ChannelConnected(channel: Channel) extends NettyMessage
   case class MessageReceived(message: AnyRef) extends NettyMessage
   case class MessageSent() extends NettyMessage
   case class ExceptionCaught(cause: Throwable) extends NettyMessage
@@ -50,7 +50,7 @@ object NettyMessage {
  * Converts netty ChannelEvents into messages to be sent to an actor.
  */
 @ChannelHandler.Sharable
-class ActorHandler(filter: NettyMessage.Filter)(actorFactory: => Actor)
+class ActorHandler(filter: NettyMessage.Filter, actorFactory: Channel => Actor)
       extends IdleStateAwareChannelUpstreamHandler {
   // not currently handled:
   // channelBound, channelUnbound, channelInterestChanged, childChannelOpen, childChannelClosed,
@@ -69,12 +69,12 @@ class ActorHandler(filter: NettyMessage.Filter)(actorFactory: => Actor)
   }
 
   override final def channelOpen(context: ChannelHandlerContext, event: ChannelStateEvent) {
-    val actor = actorFactory
+    val actor = actorFactory(context.getChannel)
     context.setAttachment(actor)
   }
 
   override final def channelConnected(context: ChannelHandlerContext, event: ChannelStateEvent) {
-    send(context, NettyMessage.ChannelConnected())
+    send(context, NettyMessage.ChannelConnected(context.getChannel))
   }
 
   override final def messageReceived(context: ChannelHandlerContext, event: MessageEvent) {
