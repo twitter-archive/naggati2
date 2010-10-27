@@ -6,7 +6,7 @@ class NaggatiProject(info: ProjectInfo) extends StandardProject(info) with Defau
 
   // scala actors library with fork-join replaced by java 5 util.concurrent:
   // FIXME: we should investigate akka actors.
-  val twitter_actors = "com.twitter" %% "twitteractors" % "2.0.0"
+  val twitter_actors = "com.twitter" %% "twitteractors" % "2.0.1"
 
   // for tests:
   val specs = "org.scala-tools.testing" %% "specs" % "1.6.5" % "test"
