@@ -49,7 +49,6 @@ object NettyMessage {
 /**
  * Converts netty ChannelEvents into messages to be sent to an actor.
  */
-@ChannelHandler.Sharable
 class ActorHandler(filter: NettyMessage.Filter, actorFactory: Channel => Actor)
       extends IdleStateAwareChannelUpstreamHandler {
   // not currently handled:

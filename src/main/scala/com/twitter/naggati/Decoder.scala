@@ -31,7 +31,6 @@ class ProtocolError(message: String, cause: Throwable) extends Exception(message
 /**
  * A netty ChannelHandler for decoding data into protocol objects.
  */
-@ChannelHandler.Sharable
 class Decoder(firstStage: Stage) extends FrameDecoder {
   @tailrec
   override final def decode(context: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer) = {
