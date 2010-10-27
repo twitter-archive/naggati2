@@ -17,6 +17,8 @@
 package com.twitter.naggati
 package codec
 
+import org.jboss.netty.buffer.ChannelBuffers
+import org.jboss.netty.channel.Channel
 import Stages._
 
 case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesRead: Int) {
@@ -28,8 +30,37 @@ case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesR
   }
 }
 
+case class MemcacheResponse(line: String, data: Option[Array[Byte]]) {
+  def this(line: String) = this(line, None)
+  def this(line: String, data: Array[Byte]) = this(line, Some(data))
+
+  override def toString = {
+    "<Repsonse: " + line + (data match {
+      case None => ""
+      case Some(x) => " data=" + x.size
+    }) + ">"
+  }
+
+  val lineData = line.getBytes("ISO-8859-1")
+  def size = lineData.size + MemcacheRequest.CRLF.size +
+    data.map { _.size + MemcacheRequest.END.size }.getOrElse(0)
+
+  def writeTo(channel: Channel) {
+    val buffer = ChannelBuffers.buffer(size)
+    buffer.writeBytes(lineData)
+    buffer.writeBytes(MemcacheRequest.CRLF)
+    data.foreach { x =>
+      buffer.writeBytes(x)
+      buffer.writeBytes(MemcacheRequest.END)
+    }
+    channel.write(buffer)
+  }
+}
+
 object MemcacheRequest {
-  private val STORAGE_COMMANDS = List("set", "add", "replace", "append", "prepend", "cas")
+  val STORAGE_COMMANDS = List("set", "add", "replace", "append", "prepend", "cas")
+  val END = "\r\nEND\r\n".getBytes
+  val CRLF = "\r\n".getBytes
 
   def asciiDecoder = new Decoder(readAscii)
 

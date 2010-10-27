@@ -18,9 +18,11 @@ package com.twitter.naggati
 package codec
 
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
+import org.jboss.netty.channel.Channel
 import org.specs.Specification
+import org.specs.mock.JMocker
 
-class MemcacheRequestSpec extends Specification {
+class MemcacheRequestSpec extends Specification with JMocker {
   def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)
 
   "MemcacheRequest" should {
@@ -51,6 +53,35 @@ class MemcacheRequestSpec extends Specification {
     "quit request" in {
       val decoder = new TestDecoder(MemcacheRequest.asciiDecoder)
       decoder(wrap("QUIT\r\n")) mustEqual List(MemcacheRequest(List("quit"), None, 6))
+    }
+  }
+
+  "MemcacheResponse" should {
+    val channel = mock[Channel]
+    val capturedChannel = capturingParam[ChannelBuffer]
+
+    def unpackBuffer(buffer: ChannelBuffer) = {
+      val bytes = new Array[Byte](buffer.readableBytes)
+      buffer.readBytes(bytes)
+      new String(bytes, "ISO-8859-1")
+    }
+
+    "write response" in {
+      expect {
+        one(channel).write(capturedChannel.capture)
+      }
+
+      new MemcacheResponse("CLIENT_ERROR foo").writeTo(channel)
+      unpackBuffer(capturedChannel.captured) mustEqual "CLIENT_ERROR foo\r\n"
+    }
+
+    "write data response" in {
+      expect {
+        one(channel).write(capturedChannel.capture)
+      }
+
+      new MemcacheResponse("VALUE foo 0 5", "hello".getBytes).writeTo(channel)
+      unpackBuffer(capturedChannel.captured) mustEqual "VALUE foo 0 5\r\nhello\r\nEND\r\n"
     }
   }
 }
