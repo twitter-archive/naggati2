@@ -74,7 +74,9 @@ state machine to a new stage.
 
 In many cases, you won't need to write a new stage yourself. Naggati comes
 with various stages that perform standard protocol units like "read a line of
-text" or "read a 32-bit network-order integer".
+text" or "read a 32-bit network-order integer". These all live in:
+
+    com.twitter.naggati.Stages
 
 For our HTTP request, we just use `readLine` to read a line of text. The final
 parameter is a closure (code block) to call when the entire line is read. It
