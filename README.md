@@ -14,5 +14,5 @@ might decode the received bytes into an `HTTPRequest` object that contains the
 method, path, HTTP version, and headers. The last receiver on the pipeline is
 your session object, which processes the message and possibly responds.
 
-![pipeline](docs/pipeline.png?raw=1)
+![pipeline](../../blob/docs/docs/pipeline.png?raw=1)
 
