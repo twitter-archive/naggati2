@@ -13,3 +13,6 @@ for whatever protocol you're speaking -- for example, in HTTP, the pipeline
 might decode the received bytes into an `HTTPRequest` object that contains the
 method, path, HTTP version, and headers. The last receiver on the pipeline is
 your session object, which processes the message and possibly responds.
+
+![pipeline](../docs/pipeline.png)
+
