@@ -4,6 +4,8 @@
 Naggati (Inuktitut for "make fit") is a protocol builder for netty, using
 scala 2.8.
 
+## What's netty?
+
 Netty is a high-performance java library for doing asynchronous event-driven
 I/O. You can check out their website here: <http://www.jboss.org/netty>
 
@@ -16,6 +18,8 @@ method, path, HTTP version, and headers. The last receiver on the pipeline is
 your session object, which processes the message and possibly responds.
 
 ![pipeline](http://github.com/robey/naggati2/raw/docs/docs/pipeline.png)
+
+## Okay, so how does naggati help?
 
 For a protocol decoder to turn bytes into objects, it needs to implement a
 kind of state machine, because there's no guarantee that a complete request
