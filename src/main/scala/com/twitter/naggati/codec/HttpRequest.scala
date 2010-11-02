@@ -40,7 +40,7 @@ object HttpRequest {
     readLine(true, "UTF-8") { line =>
       if (line == "") {
         // end of headers
-        val contentLength = headers find { _.name == "content-length" } map { _.value.toInt } getOrElse 0
+        val contentLength = headers.find { _.name == "content-length" }.map { _.value.toInt }.getOrElse(0)
         readBytes(contentLength) { data =>
           emit(HttpRequest(requestLine, headers.reverse, data))
         }
