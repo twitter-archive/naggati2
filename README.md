@@ -25,7 +25,7 @@ filter. If extra bytes are left over, they're left in the buffer for the next
 call.
 
 Naggati's primary purpose is to simplify the creation of protocol decoders, by
-letting you right sequential-looking code which is actually compiled into a
+letting you write sequential-looking code which is actually compiled into a
 state machine. It also includes a simple adapter for turning netty events into
 actor messages.
 
