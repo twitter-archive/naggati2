@@ -141,5 +141,23 @@ as a `ChannelHandler` in a netty pipeline:
 This `decoder` object can now be injected into the pipeline for a new netty
 channel.
 
+## How to use naggati in your own project
+
+Add the following repo to your project's maven repo list, if it's not already
+there:
+
+    http://maven.twttr.com/
+
+Then add a dependency on `com.twitter` / `naggati` / `2.0.0` (or whichever is
+the latest version).
+
+Netty and the actors library will be included through transitive dependencies.
+
 ## How to build
+
+You need to install
+[sbt 0.7.4](http://code.google.com/p/simple-build-tool/wiki/Setup) and
+of course java 1.6. Then:
+
+    $ sbt clean update package-dist
 
