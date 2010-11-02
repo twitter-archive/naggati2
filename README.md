@@ -141,6 +141,15 @@ as a `ChannelHandler` in a netty pipeline:
 This `decoder` object can now be injected into the pipeline for a new netty
 channel.
 
+## Other examples
+
+Check out `HttpRequest` and `MemcacheRequest` in the codec source folder. More
+may be added later.
+
+Also, kestrel 2.0 sets up a memcache server using `MemcacheRequest`. Check out
+`Kestrel.scala` to see an example of initializing netty and setting up a
+pipeline using a naggati decoder.
+
 ## How to use naggati in your own project
 
 Add the following repo to your project's maven repo list, if it's not already
@@ -161,3 +170,8 @@ of course java 1.6. Then:
 
     $ sbt clean update package-dist
 
+# Contributors
+
+- Robey Pointer @robey
+
+with advice from Steve Jenson (@stevej) and John Kalucki (@jkalucki)
