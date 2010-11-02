@@ -29,7 +29,7 @@ letting you write sequential-looking code which is actually compiled into a
 state machine. It also includes a simple adapter for turning netty events into
 actor messages.
 
-# A simple example
+## A simple example
 
 Let's build a simple HTTP header decoder using naggati. The resulting code
 already lives in `com.twitter.naggati.codec.HttpRequest` if you want to go
