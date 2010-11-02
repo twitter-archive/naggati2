@@ -82,7 +82,7 @@ we've finished decoding the request line's method, path, and version, we
       readLine(true, "UTF-8") { line =>
         if (line == "") {
           // end of headers
-          val contentLength = headers.find { _.name == "content-length" }.map { _.value.toInt } getOrElse 0
+          val contentLength = headers.find { _.name == "content-length" }.map { _.value.toInt }.getOrElse(0)
           readBytes(contentLength) { data =>
             emit(HttpRequest(requestLine, headers.reverse, data))
           }
@@ -105,8 +105,8 @@ we've finished decoding the request line's method, path, and version, we
       }
     }
 
-That may look like a lot of code, but it completely handles the parsing of HTTP request headers.
-It reads a line of text, and then handles three cases:
+That may look like a lot of code, but it completely handles the parsing of
+HTTP request headers. It reads a line of text, and then handles three cases:
 
 1. An empty line indicates that the headers are done. It reads the body
 contents into a byte array and sends the `HttpRequest` object down the
@@ -135,4 +135,5 @@ as a `ChannelHandler` in a netty pipeline:
 This `decoder` object can now be injected into the pipeline for a new netty
 channel.
 
-# How to build
+## How to build
+
