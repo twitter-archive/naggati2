@@ -35,7 +35,7 @@ object NettyMessage {
 
   type Filter = immutable.Set[Class[_ <: NettyMessage]]
 
-  def classOfObject(obj: NettyMessage) = obj.getClass.asInstanceOf[Class[NettyMessage]]
+  final def classOfObject(obj: NettyMessage) = obj.getClass.asInstanceOf[Class[NettyMessage]]
 
   val defaultFilter: Filter = immutable.Set(
     classOf[NettyMessage.ChannelConnected],

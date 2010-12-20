@@ -32,29 +32,30 @@ class ProtocolError(message: String, cause: Throwable) extends Exception(message
  * A netty ChannelHandler for decoding data into protocol objects.
  */
 class Decoder(firstStage: Stage) extends FrameDecoder {
+  private var stage = firstStage
+
+  var bytesRead: Long = 0L
+
   @tailrec
   override final def decode(context: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer) = {
-    val stage = context.getAttachment match {
-      case null => firstStage
-      case attachment => attachment.asInstanceOf[Stage]
-    }
-
+    val readableBytes = buffer.readableBytes()
     val nextStep = try {
       stage(buffer)
     } catch {
       case e: Throwable =>
         // reset state before throwing.
-        context.setAttachment(firstStage)
+        stage = firstStage
         throw e
     }
+    bytesRead += readableBytes - buffer.readableBytes()
     nextStep match {
       case Incomplete =>
         null
       case GoToStage(s) =>
-        context.setAttachment(s)
+        stage = s
         decode(context, channel, buffer)
       case Emit(obj) =>
-        context.setAttachment(firstStage)
+        stage = firstStage
         obj
     }
   }

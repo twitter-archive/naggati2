@@ -156,5 +156,5 @@ object Stages {
    * Read a line, terminated by LF or CRLF, and pass that line as a string (decoded using
    * UTF-8, with the line terminators stripped) to the next processing step.
    */
-  def readLine(process: String => NextStep): Stage = readLine(true, "UTF-8")(process)
+  final def readLine(process: String => NextStep): Stage = readLine(true, "UTF-8")(process)
 }

@@ -62,7 +62,7 @@ object MemcacheRequest {
   val END = "\r\nEND\r\n".getBytes
   val CRLF = "\r\n".getBytes
 
-  def asciiDecoder = new Decoder(readAscii)
+  def asciiDecoder(): Decoder = new Decoder(readAscii)
 
   def readAscii() = readLine(true, "ISO-8859-1") { line =>
     val segments = line.split(" ")
