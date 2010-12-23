@@ -33,7 +33,7 @@ hello!"""
 
   "HttpRequest" should {
     "parse a simple http request" in {
-      val decoder = new TestDecoder(HttpRequest.decoder)
+      val decoder = new TestCodec(HttpRequest.codec)
       val written = decoder(wrap(TEST1)).asInstanceOf[List[HttpRequest]]
 
       written.size mustEqual 1

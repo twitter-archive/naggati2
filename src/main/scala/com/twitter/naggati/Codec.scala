@@ -17,9 +17,10 @@
 package com.twitter.naggati
 
 import scala.annotation.tailrec
-import org.jboss.netty.buffer.ChannelBuffer
-import org.jboss.netty.channel.{Channel, ChannelHandler, ChannelHandlerContext}
+import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
+import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.frame.FrameDecoder
+import com.twitter.ostrich.Stats
 
 /*
  * Convenience exception class to allow decoders to indicate a protocol error.
@@ -28,13 +29,42 @@ class ProtocolError(message: String, cause: Throwable) extends Exception(message
   def this(message: String) = this(message, null)
 }
 
+object Codec {
+  val NONE: PartialFunction[Any, ChannelBuffer] = {
+    case null => null
+  }
+}
+
 /**
- * A netty ChannelHandler for decoding data into protocol objects.
+ * A netty ChannelHandler for decoding data into protocol objects on the way in, and packing
+ * objects into byte arrays on the way out. Optionally, the bytes in/out are tracked.
  */
-class Decoder(firstStage: Stage) extends FrameDecoder {
+class Codec(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer],
+            bytesReadCounter: String, bytesWrittenCounter: String)
+extends FrameDecoder with ChannelDownstreamHandler {
+  def this(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer]) =
+    this(firstStage, encoder, "bytes_read", "bytes_written")
+
   private var stage = firstStage
 
-  var bytesRead: Long = 0L
+  private def buffer(context: ChannelHandlerContext) = {
+    ChannelBuffers.dynamicBuffer(context.getChannel().getConfig().getBufferFactory())
+  }
+
+  // turn an Encodable message into a Buffer.
+  override final def handleDownstream(context: ChannelHandlerContext, event: ChannelEvent) {
+    event match {
+      case message: MessageEvent =>
+        val obj = message.getMessage()
+        if (encoder.isDefinedAt(obj)) {
+          Channels.fireMessageReceived(context, encoder(obj), message.getRemoteAddress())
+        } else {
+          context.sendDownstream(event)
+        }
+      case _ =>
+        context.sendDownstream(event)
+    }
+  }
 
   @tailrec
   override final def decode(context: ChannelHandlerContext, channel: Channel, buffer: ChannelBuffer) = {
@@ -47,7 +77,7 @@ class Decoder(firstStage: Stage) extends FrameDecoder {
         stage = firstStage
         throw e
     }
-    bytesRead += readableBytes - buffer.readableBytes()
+    Stats.incr(bytesReadCounter, readableBytes - buffer.readableBytes())
     nextStep match {
       case Incomplete =>
         null

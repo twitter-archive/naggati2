@@ -21,24 +21,32 @@ import org.jboss.netty.buffer.ChannelBuffer
 import org.jboss.netty.channel._
 
 /**
- * Netty doesn't appear to have a good set of fake objects yet, so this wraps a Decoder in a fake
+ * Netty doesn't appear to have a good set of fake objects yet, so this wraps a Codec in a fake
  * environment that collects emitted objects and returns them.
  */
-class TestDecoder(decoder: Decoder) {
-  def this(firstStage: Stage) = this(new Decoder(firstStage))
+class TestCodec(codec: Codec) {
+  def this(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer]) =
+    this(new Codec(firstStage, encoder))
 
   val output = new mutable.ListBuffer[AnyRef]
 
   val fin = new SimpleChannelUpstreamHandler() {
     override def messageReceived(c: ChannelHandlerContext, e: MessageEvent) {
-      output += e.getMessage
+      e.getMessage match {
+        case buffer: ChannelBuffer =>
+          val bytes = new Array[Byte](buffer.readableBytes)
+          buffer.readBytes(bytes)
+          output += bytes
+        case x =>
+          output += x
+      }
     }
   }
   val pipeline = Channels.pipeline()
-  pipeline.addLast("decoder", decoder)
+  pipeline.addLast("decoder", codec)
   pipeline.addLast("fin", fin)
 
-  val context = pipeline.getContext(decoder)
+  val context = pipeline.getContext(codec)
   val sink = new AbstractChannelSink() {
     def eventSunk(pipeline: ChannelPipeline, event: ChannelEvent) { }
   }
@@ -52,7 +60,13 @@ class TestDecoder(decoder: Decoder) {
 
   def apply(buffer: ChannelBuffer) = {
     output.clear()
-    decoder.messageReceived(context, new UpstreamMessageEvent(pipeline.getChannel, buffer, null))
+    codec.messageReceived(context, new UpstreamMessageEvent(pipeline.getChannel, buffer, null))
+    output.toList
+  }
+
+  def send(obj: Any) = {
+    output.clear()
+    codec.handleDownstream(context, new DownstreamMessageEvent(pipeline.getChannel, Channels.future(pipeline.getChannel), obj, null))
     output.toList
   }
 }

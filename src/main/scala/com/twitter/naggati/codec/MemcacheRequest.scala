@@ -17,7 +17,7 @@
 package com.twitter.naggati
 package codec
 
-import org.jboss.netty.buffer.ChannelBuffers
+import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel.Channel
 import Stages._
 
@@ -42,29 +42,32 @@ case class MemcacheResponse(line: String, data: Option[Array[Byte]]) {
   }
 
   val lineData = line.getBytes("ISO-8859-1")
-  def size = lineData.size + MemcacheRequest.CRLF.size +
-    data.map { _.size + MemcacheRequest.END.size }.getOrElse(0)
 
-  def writeTo(channel: Channel) {
+  def writeAscii() = {
+    val size = lineData.size + MemcacheCodec.CRLF.size +
+      (if (data.isDefined) (data.get.size + MemcacheCodec.END.size) else 0)
     val buffer = ChannelBuffers.buffer(size)
     buffer.writeBytes(lineData)
-    buffer.writeBytes(MemcacheRequest.CRLF)
+    buffer.writeBytes(MemcacheCodec.CRLF)
     data.foreach { x =>
       buffer.writeBytes(x)
-      buffer.writeBytes(MemcacheRequest.END)
+      buffer.writeBytes(MemcacheCodec.END)
     }
-    channel.write(buffer)
+    buffer
   }
 }
 
-object MemcacheRequest {
+object MemcacheCodec {
   val STORAGE_COMMANDS = List("set", "add", "replace", "append", "prepend", "cas")
   val END = "\r\nEND\r\n".getBytes
   val CRLF = "\r\n".getBytes
 
-  def asciiDecoder(): Decoder = new Decoder(readAscii)
+  def asciiCodec(bytesReadCounter: String, bytesWrittenCounter: String) =
+    new Codec(readAscii, writeAscii, bytesReadCounter, bytesWrittenCounter)
 
-  def readAscii() = readLine(true, "ISO-8859-1") { line =>
+  def asciiCodec() = new Codec(readAscii, writeAscii)
+
+  val readAscii = readLine(true, "ISO-8859-1") { line =>
     val segments = line.split(" ")
     segments(0) = segments(0).toLowerCase
 
@@ -84,5 +87,10 @@ object MemcacheRequest {
     } else {
       emit(MemcacheRequest(segments.toList, None, line.length + 2))
     }
+  }
+
+  val writeAscii: PartialFunction[Any, ChannelBuffer] = {
+    case response: MemcacheResponse =>
+      response.writeAscii()
   }
 }
