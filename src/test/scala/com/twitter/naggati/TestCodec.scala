@@ -30,21 +30,31 @@ class TestCodec(codec: Codec) {
 
   val output = new mutable.ListBuffer[AnyRef]
 
-  val fin = new SimpleChannelUpstreamHandler() {
+  def log(e: MessageEvent) {
+    e.getMessage match {
+      case buffer: ChannelBuffer =>
+        val bytes = new Array[Byte](buffer.readableBytes)
+        buffer.readBytes(bytes)
+        output += bytes
+      case x =>
+        output += x
+    }
+  }
+
+  val upstreamTerminus = new SimpleChannelUpstreamHandler() {
     override def messageReceived(c: ChannelHandlerContext, e: MessageEvent) {
-      e.getMessage match {
-        case buffer: ChannelBuffer =>
-          val bytes = new Array[Byte](buffer.readableBytes)
-          buffer.readBytes(bytes)
-          output += bytes
-        case x =>
-          output += x
-      }
+      log(e)
+    }
+  }
+  val downstreamTerminus = new SimpleChannelDownstreamHandler() {
+    override def writeRequested(c: ChannelHandlerContext, e: MessageEvent) {
+      log(e)
     }
   }
   val pipeline = Channels.pipeline()
+  pipeline.addLast("downstreamTerminus", downstreamTerminus)
   pipeline.addLast("decoder", codec)
-  pipeline.addLast("fin", fin)
+  pipeline.addLast("upstreamTerminus", upstreamTerminus)
 
   val context = pipeline.getContext(codec)
   val sink = new AbstractChannelSink() {

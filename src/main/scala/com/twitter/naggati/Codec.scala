@@ -54,10 +54,10 @@ extends FrameDecoder with ChannelDownstreamHandler {
   // turn an Encodable message into a Buffer.
   override final def handleDownstream(context: ChannelHandlerContext, event: ChannelEvent) {
     event match {
-      case message: MessageEvent =>
+      case message: DownstreamMessageEvent =>
         val obj = message.getMessage()
         if (encoder.isDefinedAt(obj)) {
-          Channels.fireMessageReceived(context, encoder(obj), message.getRemoteAddress())
+          Channels.write(context, message.getFuture, encoder(obj), message.getRemoteAddress)
         } else {
           context.sendDownstream(event)
         }
