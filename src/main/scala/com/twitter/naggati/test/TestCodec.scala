@@ -15,6 +15,7 @@
  */
 
 package com.twitter.naggati
+package test
 
 import scala.collection.mutable
 import org.jboss.netty.buffer.ChannelBuffer
@@ -28,27 +29,35 @@ class TestCodec(codec: Codec) {
   def this(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer]) =
     this(new Codec(firstStage, encoder))
 
-  val output = new mutable.ListBuffer[AnyRef]
+  val downstreamOutput = new mutable.ListBuffer[AnyRef]
+  val upstreamOutput = new mutable.ListBuffer[AnyRef]
 
-  def log(e: MessageEvent) {
+  private def log(e: MessageEvent, list: mutable.ListBuffer[AnyRef]) {
     e.getMessage match {
       case buffer: ChannelBuffer =>
         val bytes = new Array[Byte](buffer.readableBytes)
         buffer.readBytes(bytes)
-        output += bytes
+        list += bytes
       case x =>
-        output += x
+        list += x
+    }
+  }
+
+  private def toStrings(wrapped: Seq[Any]): Seq[String] = wrapped.map { item =>
+    item match {
+      case x: Array[Byte] => new String(x, "UTF-8")
+      case x => x.toString
     }
   }
 
   val upstreamTerminus = new SimpleChannelUpstreamHandler() {
     override def messageReceived(c: ChannelHandlerContext, e: MessageEvent) {
-      log(e)
+      log(e, upstreamOutput)
     }
   }
   val downstreamTerminus = new SimpleChannelDownstreamHandler() {
     override def writeRequested(c: ChannelHandlerContext, e: MessageEvent) {
-      log(e)
+      log(e, downstreamOutput)
     }
   }
   val pipeline = Channels.pipeline()
@@ -69,14 +78,14 @@ class TestCodec(codec: Codec) {
   }
 
   def apply(buffer: ChannelBuffer) = {
-    output.clear()
+    upstreamOutput.clear()
     codec.messageReceived(context, new UpstreamMessageEvent(pipeline.getChannel, buffer, null))
-    output.toList
+    upstreamOutput.toList
   }
 
   def send(obj: Any) = {
-    output.clear()
+    downstreamOutput.clear()
     codec.handleDownstream(context, new DownstreamMessageEvent(pipeline.getChannel, Channels.future(pipeline.getChannel), obj, null))
-    output.toList
+    toStrings(downstreamOutput.toList)
   }
 }

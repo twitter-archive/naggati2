@@ -19,6 +19,7 @@ package codec
 
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.specs.Specification
+import test.TestCodec
 
 class HttpRequestSpec extends Specification {
   def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)

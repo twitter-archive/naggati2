@@ -21,18 +21,10 @@ import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel.Channel
 import org.specs.Specification
 import org.specs.mock.JMocker
+import test.TestCodec
 
-class MemcacheRequestSpec extends Specification with JMocker {
+class MemcacheCodecSpec extends Specification with JMocker {
   def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)
-
-  implicit def stringify(wrapped: Seq[Any]) = new {
-    def mapToString = wrapped.map { item =>
-      item match {
-        case x: Array[Byte] => new String(x)
-        case x => x.toString
-      }
-    }
-  }
 
   "MemcacheRequest" should {
     "get request" in {
@@ -78,13 +70,13 @@ class MemcacheRequestSpec extends Specification with JMocker {
     "write response" in {
       val codec = new TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
 
-      codec.send(new MemcacheResponse("CLIENT_ERROR foo")).mapToString mustEqual List("CLIENT_ERROR foo\r\n")
+      codec.send(new MemcacheResponse("CLIENT_ERROR foo")) mustEqual List("CLIENT_ERROR foo\r\n")
     }
 
     "write data response" in {
       val codec = new TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
 
-      codec.send(new MemcacheResponse("VALUE foo 0 5", "hello".getBytes)).mapToString mustEqual
+      codec.send(new MemcacheResponse("VALUE foo 0 5", "hello".getBytes)) mustEqual
         List("VALUE foo 0 5\r\nhello\r\nEND\r\n")
     }
   }

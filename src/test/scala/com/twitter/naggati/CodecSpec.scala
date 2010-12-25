@@ -20,18 +20,10 @@ import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.specs.Specification
 import org.specs.mock.JMocker
 import Stages._
+import test.TestCodec
 
 class CodecSpec extends Specification with JMocker {
   def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)
-
-  implicit def stringify(wrapped: Seq[Any]) = new {
-    def mapToString = wrapped.map { item =>
-      item match {
-        case x: Array[Byte] => new String(x)
-        case x => x.toString
-      }
-    }
-  }
 
   val encoder: PartialFunction[Any, ChannelBuffer] = {
     case x: String =>
@@ -87,7 +79,7 @@ class CodecSpec extends Specification with JMocker {
 
     "encode" in {
       val codec = new TestCodec(readLine(true, "UTF-8") { line => emit(line) }, encoder)
-      codec.send("hello").mapToString mustEqual List("hello")
+      codec.send("hello") mustEqual List("hello")
     }
   }
 }
