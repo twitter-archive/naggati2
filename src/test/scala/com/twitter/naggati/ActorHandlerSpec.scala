@@ -35,8 +35,11 @@ class ActorHandlerSpec extends Specification with JMocker {
     currentActor = actor {
       loop {
         receive {
-          case "exit" => exit()
-          case x => messages += x
+          case "exit" =>
+            messages += "exit"
+            exit()
+          case x =>
+            messages += x
         }
       }
     }
@@ -66,7 +69,8 @@ class ActorHandlerSpec extends Specification with JMocker {
       }
 
       handler.messageReceived(context, messageEvent)
-      messages.toList mustEqual List(NettyMessage.MessageReceived("hello"))
+      currentActor ! "exit"
+      messages.toList must eventually(be_==(List(NettyMessage.MessageReceived("hello"), "exit")))
     }
 
     "not receive filtered-out events" in {
@@ -81,7 +85,8 @@ class ActorHandlerSpec extends Specification with JMocker {
 
       handler.channelOpen(context, null)
       handler.writeComplete(context, null)
-      messages.toList mustEqual Nil
+      currentActor ! "exit"
+      messages.toList must eventually(be_==(List("exit")))
     }
   }
 }
