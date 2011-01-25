@@ -20,7 +20,7 @@ import scala.annotation.tailrec
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.frame.FrameDecoder
-import com.twitter.ostrich.Stats
+import com.twitter.stats.Stats
 
 /*
  * Convenience exception class to allow decoders to indicate a protocol error.
