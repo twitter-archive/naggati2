@@ -3,7 +3,7 @@ import com.twitter.sbt._
 
 class NaggatiProject(info: ProjectInfo) extends StandardProject(info) with DefaultRepos {
   val netty = "org.jboss.netty" % "netty" % "3.2.3.Final"
-  val ostrich = "com.twitter" % "ostrich" % "3.0.0-SNAPSHOT"
+  val ostrich = "com.twitter" % "ostrich" % "3.0.4"
 
   // scala actors library with fork-join replaced by java 5 util.concurrent:
   // FIXME: we should investigate akka actors.
