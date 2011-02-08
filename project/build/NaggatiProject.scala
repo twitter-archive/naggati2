@@ -1,7 +1,7 @@
 import sbt._
 import com.twitter.sbt._
 
-class NaggatiProject(info: ProjectInfo) extends StandardProject(info) with DefaultRepos {
+class NaggatiProject(info: ProjectInfo) extends StandardLibraryProject(info) with SubversionPublisher with DefaultRepos {
   val netty = "org.jboss.netty" % "netty" % "3.2.3.Final"
   val ostrich = "com.twitter" % "ostrich" % "3.0.4"
 
