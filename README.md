@@ -30,8 +30,7 @@ call.
 
 Naggati's primary purpose is to simplify the creation of protocol decoders, by
 letting you write sequential-looking code which is actually compiled into a
-state machine. It also includes a simple adapter for turning netty events into
-actor messages.
+state machine.
 
 ## A simple example
 
@@ -160,7 +159,7 @@ there:
 Then add a dependency on `com.twitter` / `naggati` / `2.0.0` (or whichever is
 the latest version).
 
-Netty and the actors library will be included through transitive dependencies.
+Netty will be included through transitive dependencies.
 
 ## How to build
 
