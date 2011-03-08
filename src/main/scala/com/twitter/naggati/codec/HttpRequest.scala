@@ -24,7 +24,7 @@ case class HeaderLine(name: String, value: String)
 case class HttpRequest(request: RequestLine, headers: List[HeaderLine], body: Array[Byte])
 
 object HttpRequest {
-  def codec(bytesReadCounter: String, bytesWrittenCounter: String) =
+  def codec(bytesReadCounter: Int => Unit, bytesWrittenCounter: Int => Unit) =
     new Codec(read, Codec.NONE, bytesReadCounter, bytesWrittenCounter)
 
   def codec() = new Codec(read, Codec.NONE)

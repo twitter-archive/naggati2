@@ -20,7 +20,6 @@ import scala.annotation.tailrec
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.frame.FrameDecoder
-import com.twitter.stats.Stats
 
 /*
  * Convenience exception class to allow decoders to indicate a protocol error.
@@ -35,15 +34,19 @@ object Codec {
   }
 }
 
+object DontCareCounter extends (Int => Unit) {
+  def apply(x: Int) { }
+}
+
 /**
  * A netty ChannelHandler for decoding data into protocol objects on the way in, and packing
  * objects into byte arrays on the way out. Optionally, the bytes in/out are tracked.
  */
 class Codec(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer],
-            bytesReadCounter: String, bytesWrittenCounter: String)
+            bytesReadCounter: Int => Unit, bytesWrittenCounter: Int => Unit)
 extends FrameDecoder with ChannelDownstreamHandler {
   def this(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer]) =
-    this(firstStage, encoder, "bytes_read", "bytes_written")
+    this(firstStage, encoder, DontCareCounter, DontCareCounter)
 
   private var stage = firstStage
 
@@ -57,7 +60,9 @@ extends FrameDecoder with ChannelDownstreamHandler {
       case message: DownstreamMessageEvent =>
         val obj = message.getMessage()
         if (encoder.isDefinedAt(obj)) {
-          Channels.write(context, message.getFuture, encoder(obj), message.getRemoteAddress)
+          val buffer = encoder(obj)
+          bytesWrittenCounter(buffer.writableBytes)
+          Channels.write(context, message.getFuture, buffer, message.getRemoteAddress)
         } else {
           context.sendDownstream(event)
         }
@@ -77,7 +82,7 @@ extends FrameDecoder with ChannelDownstreamHandler {
         stage = firstStage
         throw e
     }
-    Stats.incr(bytesReadCounter, readableBytes - buffer.readableBytes())
+    bytesReadCounter(readableBytes - buffer.readableBytes())
     nextStep match {
       case Incomplete =>
         null
