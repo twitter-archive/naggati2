@@ -28,7 +28,7 @@ class MemcacheCodecSpec extends Specification with JMocker {
 
   "MemcacheRequest" should {
     "get request" in {
-      val codec = new TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
+      val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
 
       codec(wrap("get foo\r\n")) mustEqual List(MemcacheRequest(List("get", "foo"), None, 9))
       codec(wrap("get f")) mustEqual Nil
@@ -41,7 +41,7 @@ class MemcacheCodecSpec extends Specification with JMocker {
     }
 
     "set request" in {
-      val codec = new TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
+      val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
 
       codec(wrap("set foo 0 0 5\r\nhello\r\n")).map(_.toString) mustEqual List("<Request: [set foo 0 0 5] data=5 read=22>")
       codec(wrap("set foo 0 0 5\r\n")).map(_.toString) mustEqual Nil
@@ -52,7 +52,7 @@ class MemcacheCodecSpec extends Specification with JMocker {
     }
 
     "quit request" in {
-      val codec = new TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
+      val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
       codec(wrap("QUIT\r\n")) mustEqual List(MemcacheRequest(List("quit"), None, 6))
     }
   }
@@ -68,13 +68,13 @@ class MemcacheCodecSpec extends Specification with JMocker {
     }
 
     "write response" in {
-      val codec = new TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
+      val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
 
       codec.send(new MemcacheResponse("CLIENT_ERROR foo")) mustEqual List("CLIENT_ERROR foo\r\n")
     }
 
     "write data response" in {
-      val codec = new TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
+      val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
 
       codec.send(new MemcacheResponse("VALUE foo 0 5", "hello".getBytes)) mustEqual
         List("VALUE foo 0 5\r\nhello\r\nEND\r\n")

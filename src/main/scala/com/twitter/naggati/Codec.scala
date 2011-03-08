@@ -61,7 +61,7 @@ extends FrameDecoder with ChannelDownstreamHandler {
         val obj = message.getMessage()
         if (encoder.isDefinedAt(obj)) {
           val buffer = encoder(obj)
-          bytesWrittenCounter(buffer.writableBytes)
+          bytesWrittenCounter(buffer.readableBytes)
           Channels.write(context, message.getFuture, buffer, message.getRemoteAddress)
         } else {
           context.sendDownstream(event)

@@ -21,14 +21,26 @@ import scala.collection.mutable
 import org.jboss.netty.buffer.ChannelBuffer
 import org.jboss.netty.channel._
 
+class Counter {
+  var readBytes = 0
+  var writtenBytes = 0
+}
+
+object TestCodec {
+  def apply(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer]) = {
+    val counter = new Counter()
+    val codec = new Codec(firstStage, encoder, { n => counter.readBytes += n },
+      { n => counter.writtenBytes += n })
+    val testCodec = new TestCodec(codec)
+    (testCodec, counter)
+  }
+}
+
 /**
  * Netty doesn't appear to have a good set of fake objects yet, so this wraps a Codec in a fake
  * environment that collects emitted objects and returns them.
  */
 class TestCodec(codec: Codec) {
-  def this(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer]) =
-    this(new Codec(firstStage, encoder))
-
   val downstreamOutput = new mutable.ListBuffer[AnyRef]
   val upstreamOutput = new mutable.ListBuffer[AnyRef]
 

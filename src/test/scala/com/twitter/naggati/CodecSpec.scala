@@ -34,19 +34,26 @@ class CodecSpec extends Specification with JMocker {
 
   "Codec" should {
     "read a fixed number of bytes" in {
-      val codec = new TestCodec(readBytes(4) { bytes => emit(new String(bytes)) }, Codec.NONE)
+      val (codec, counter) = TestCodec(readBytes(4) { bytes => emit(new String(bytes)) },
+        Codec.NONE)
 
       codec(wrap("12")) mustEqual Nil
+      counter.readBytes mustEqual 0
       codec(wrap("345")) mustEqual List("1234")
+      counter.readBytes mustEqual 4
       codec(wrap("6789")) mustEqual List("5678")
+      counter.readBytes mustEqual 8
       codec(wrap("ABCDEFGHIJKLM")) mustEqual List("9ABC", "DEFG", "HIJK")
+      counter.readBytes mustEqual 20
       codec(wrap("N")) mustEqual Nil
       codec(wrap("O")) mustEqual List("LMNO")
+      counter.readBytes mustEqual 24
       codec(wrap("PQRS")) mustEqual List("PQRS")
+      counter.readBytes mustEqual 28
     }
 
     "read up to a delimiter, in chunks" in {
-      val codec = new TestCodec(readToDelimiter('\n'.toByte) { bytes => emit(new String(bytes)) }, Codec.NONE)
+      val (codec, counter) = TestCodec(readToDelimiter('\n'.toByte) { bytes => emit(new String(bytes)) }, Codec.NONE)
 
       codec(wrap("partia")) mustEqual Nil
       codec(wrap("l\nand")) mustEqual List("partial\n")
@@ -59,7 +66,8 @@ class CodecSpec extends Specification with JMocker {
 
     "read a line" in {
       "strip linefeeds" in {
-        val codec = new TestCodec(readLine(true, "UTF-8") { line => emit(line) }, Codec.NONE)
+        val (codec, counter) = TestCodec(readLine(true, "UTF-8") { line => emit(line) },
+          Codec.NONE)
         codec(wrap("hello.\n")) mustEqual List("hello.")
         codec(wrap("hello there\r\ncat")) mustEqual List("hello there")
         codec(wrap("s don't use CR\n")) mustEqual List("cats don't use CR")
@@ -68,7 +76,8 @@ class CodecSpec extends Specification with JMocker {
       }
 
       "keep linefeeds" in {
-        val codec = new TestCodec(readLine(false, "UTF-8") { line => emit(line) }, Codec.NONE)
+        val (codec, counter) = TestCodec(readLine(false, "UTF-8") { line => emit(line) },
+          Codec.NONE)
         codec(wrap("hello.\n")) mustEqual List("hello.\n")
         codec(wrap("hello there\r\ncat")) mustEqual List("hello there\r\n")
         codec(wrap("s don't use CR\n")) mustEqual List("cats don't use CR\n")
@@ -78,8 +87,9 @@ class CodecSpec extends Specification with JMocker {
     }
 
     "encode" in {
-      val codec = new TestCodec(readLine(true, "UTF-8") { line => emit(line) }, encoder)
+      val (codec, counter) = TestCodec(readLine(true, "UTF-8") { line => emit(line) }, encoder)
       codec.send("hello") mustEqual List("hello")
+      counter.writtenBytes mustEqual 5
     }
   }
 }
