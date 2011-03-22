@@ -34,7 +34,7 @@ case class MemcacheResponse(line: String, data: Option[Array[Byte]]) {
   def this(line: String, data: Array[Byte]) = this(line, Some(data))
 
   override def toString = {
-    "<Repsonse: " + line + (data match {
+    "<Response: " + line + (data match {
       case None => ""
       case Some(x) => " data=" + x.size
     }) + ">"
