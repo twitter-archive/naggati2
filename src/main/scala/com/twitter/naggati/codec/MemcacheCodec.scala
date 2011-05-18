@@ -29,10 +29,7 @@ case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesR
   }
 }
 
-case class MemcacheResponse(line: String, data: Option[Array[Byte]]) {
-  def this(line: String) = this(line, None)
-  def this(line: String, data: Array[Byte]) = this(line, Some(data))
-
+case class MemcacheResponse(line: String, data: Option[Array[Byte]] = None) extends Codec.Signalling {
   override def toString = {
     "<Response: " + line + (data match {
       case None => ""
