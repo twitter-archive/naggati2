@@ -87,6 +87,10 @@ class TestCodec(codec: Codec) {
     def isConnected() = true
     def isBound() = true
     def getConfig() = new DefaultChannelConfig()
+    override def close() = {
+      downstreamOutput += "<CLOSE>"
+      null
+    }
   }
 
   def apply(buffer: ChannelBuffer) = {

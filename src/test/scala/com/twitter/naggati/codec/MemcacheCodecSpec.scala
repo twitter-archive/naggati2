@@ -76,8 +76,15 @@ class MemcacheCodecSpec extends Specification with JMocker {
     "write data response" in {
       val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
 
-      codec.send(new MemcacheResponse("VALUE foo 0 5", "hello".getBytes)) mustEqual
+      codec.send(new MemcacheResponse("VALUE foo 0 5", Some("hello".getBytes))) mustEqual
         List("VALUE foo 0 5\r\nhello\r\nEND\r\n")
+    }
+
+    "write repsonse, then disconnect" in {
+      val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
+
+      codec.send(new MemcacheResponse("CLIENT_ERROR foo") then Codec.Disconnect) mustEqual
+        List("CLIENT_ERROR foo\r\n", "<CLOSE>")
     }
   }
 }
