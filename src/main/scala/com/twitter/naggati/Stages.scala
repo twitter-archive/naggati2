@@ -22,36 +22,36 @@ object Stages {
   /**
    * Generate a Stage from a code block.
    */
-  final def stage(f: ChannelBuffer => NextStep): Stage = new Stage {
+  def stage(f: ChannelBuffer => NextStep): Stage = new Stage {
     def apply(buffer: ChannelBuffer) = f(buffer)
   }
 
   /**
    * Wrap a Stage. The wrapped stage will be regenerated on each call.
    */
-  final def proxy(stage: => Stage): Stage = new Stage {
+  def proxy(stage: => Stage): Stage = new Stage {
     def apply(buffer: ChannelBuffer) = stage.apply(buffer)
   }
 
   /**
    * Allow a decoder to return a Stage when we expected a NextStep.
    */
-  implicit final def stageToNextStep(stage: Stage) = GoToStage(stage)
+  implicit def stageToNextStep(stage: Stage) = GoToStage(stage)
 
-  final def emit(obj: AnyRef) = Emit(obj)
+  def emit(obj: AnyRef) = Emit(obj)
 
   /**
    * Ensure that a certain number of bytes is buffered before executing the next step, calling
    * `getCount` each time new data arrives, to recompute the total number of bytes desired.
    */
-  final def ensureBytesDynamic(getCount: => Int)(process: ChannelBuffer => NextStep) = proxy {
+  def ensureBytesDynamic(getCount: => Int)(process: ChannelBuffer => NextStep) = proxy {
     ensureBytes(getCount)(process)
   }
 
   /**
    * Ensure that a certain number of bytes is buffered before executing the * next step.
    */
-  final def ensureBytes(count: Int)(process: ChannelBuffer => NextStep) = stage { buffer =>
+  def ensureBytes(count: Int)(process: ChannelBuffer => NextStep) = stage { buffer =>
     if (buffer.readableBytes < count) {
       Incomplete
     } else {
@@ -64,14 +64,14 @@ object Stages {
    * processing. `getCount` is called each time new data arrives, to recompute * the total number of
    * bytes desired.
    */
-  final def readBytesDynamic(getCount: => Int)(process: Array[Byte] => NextStep) = proxy {
+  def readBytesDynamic(getCount: => Int)(process: Array[Byte] => NextStep) = proxy {
     readBytes(getCount)(process)
   }
 
   /**
    * Read `count` bytes into a byte buffer and pass that buffer to the next step in processing.
    */
-  final def readBytes(count: Int)(process: Array[Byte] => NextStep) = stage { buffer =>
+  def readBytes(count: Int)(process: Array[Byte] => NextStep) = stage { buffer =>
     if (buffer.readableBytes < count) {
       Incomplete
     } else {
@@ -85,7 +85,7 @@ object Stages {
    * Read bytes until a delimiter is present. The number of bytes up to and including the delimiter
    * is passed to the next processing step. `getDelimiter` is called each time new data arrives.
    */
-  final def ensureDelimiterDynamic(getDelimiter: => Byte)(process: (Int, ChannelBuffer) => NextStep) = proxy {
+  def ensureDelimiterDynamic(getDelimiter: => Byte)(process: (Int, ChannelBuffer) => NextStep) = proxy {
     ensureDelimiter(getDelimiter)(process)
   }
 
@@ -93,7 +93,7 @@ object Stages {
    * Read bytes until a delimiter is present. The number of bytes up to and including the delimiter
    * is passed to the next processing step.
    */
-  final def ensureDelimiter(delimiter: Byte)(process: (Int, ChannelBuffer) => NextStep) = stage { buffer =>
+  def ensureDelimiter(delimiter: Byte)(process: (Int, ChannelBuffer) => NextStep) = stage { buffer =>
     val n = buffer.bytesBefore(delimiter)
     if (n < 0) {
       Incomplete
@@ -107,7 +107,7 @@ object Stages {
    * including the delimiter to the next processing step. `getDelimiter` is called each time new
    * data arrives.
    */
-  final def readToDelimiterDynamic(getDelimiter: => Byte)(process: Array[Byte] => NextStep) = proxy {
+  def readToDelimiterDynamic(getDelimiter: => Byte)(process: Array[Byte] => NextStep) = proxy {
     readToDelimiter(getDelimiter)(process)
   }
 
@@ -115,7 +115,7 @@ object Stages {
    * Read bytes until a delimiter is present, and pass a buffer containing the bytes up to and
    * including the delimiter to the next processing step.
    */
-  final def readToDelimiter(delimiter: Byte)(process: (Array[Byte]) => NextStep) = stage { buffer =>
+  def readToDelimiter(delimiter: Byte)(process: (Array[Byte]) => NextStep) = stage { buffer =>
     ensureDelimiter(delimiter) { (n, buffer) =>
       val byteBuffer = new Array[Byte](n)
       buffer.readBytes(byteBuffer)
@@ -130,7 +130,7 @@ object Stages {
    * @param removeLF true if the LF or CRLF should be stripped from the string before passing it on
    * @param encoding byte-to-character encoding to use
    */
-  final def readLine(removeLF: Boolean, encoding: String)(process: String => NextStep): Stage = {
+  def readLine(removeLF: Boolean, encoding: String)(process: String => NextStep): Stage = {
     ensureDelimiter('\n'.toByte) { (n, buffer) =>
       val end = if ((n > 1) && (buffer.getByte(buffer.readerIndex + n - 2) == '\r'.toByte)) {
         n - 2
@@ -149,12 +149,12 @@ object Stages {
    *
    * @param removeLF true if the LF or CRLF should be stripped from the string before passing it on
    */
-  final def readLine(removeLF: Boolean)(process: String => NextStep): Stage =
+  def readLine(removeLF: Boolean)(process: String => NextStep): Stage =
     readLine(removeLF, "UTF-8")(process)
 
   /**
    * Read a line, terminated by LF or CRLF, and pass that line as a string (decoded using
    * UTF-8, with the line terminators stripped) to the next processing step.
    */
-  final def readLine(process: String => NextStep): Stage = readLine(true, "UTF-8")(process)
+  def readLine(process: String => NextStep): Stage = readLine(true, "UTF-8")(process)
 }
