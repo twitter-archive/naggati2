@@ -7,6 +7,7 @@ class NaggatiProject(info: ProjectInfo) extends StandardLibraryProject(info)
   with IdeaProject
 {
   val netty = "org.jboss.netty" % "netty" % "3.2.3.Final"
+  val util_core = "com.twitter" % "util-core" % "1.8.1"
 
   // for tests:
   val specs = "org.scala-tools.testing" % "specs_2.8.1" % "1.6.7" % "test"
