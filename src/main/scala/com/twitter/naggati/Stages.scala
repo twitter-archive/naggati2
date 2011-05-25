@@ -36,22 +36,22 @@ object Stages {
   /**
    * Allow a decoder to return a Stage when we expected a NextStep.
    */
-  implicit def stageToNextStep(stage: Stage) = GoToStage(stage)
+  implicit def stageToNextStep(stage: Stage): NextStep = GoToStage(stage)
 
-  def emit(obj: AnyRef) = Emit(obj)
+  def emit(obj: AnyRef): NextStep = Emit(obj)
 
   /**
    * Ensure that a certain number of bytes is buffered before executing the next step, calling
    * `getCount` each time new data arrives, to recompute the total number of bytes desired.
    */
-  def ensureBytesDynamic(getCount: => Int)(process: ChannelBuffer => NextStep) = proxy {
+  def ensureBytesDynamic(getCount: => Int)(process: ChannelBuffer => NextStep): Stage = proxy {
     ensureBytes(getCount)(process)
   }
 
   /**
    * Ensure that a certain number of bytes is buffered before executing the * next step.
    */
-  def ensureBytes(count: Int)(process: ChannelBuffer => NextStep) = stage { buffer =>
+  def ensureBytes(count: Int)(process: ChannelBuffer => NextStep): Stage = stage { buffer =>
     if (buffer.readableBytes < count) {
       Incomplete
     } else {
