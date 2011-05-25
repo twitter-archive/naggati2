@@ -27,7 +27,7 @@ class Counter {
 }
 
 object TestCodec {
-  def apply(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer]) = {
+  def apply[A: Manifest](firstStage: Stage, encoder: Encoder[A]) = {
     val counter = new Counter()
     val codec = new Codec(firstStage, encoder, { n => counter.readBytes += n },
       { n => counter.writtenBytes += n })
@@ -40,7 +40,7 @@ object TestCodec {
  * Netty doesn't appear to have a good set of fake objects yet, so this wraps a Codec in a fake
  * environment that collects emitted objects and returns them.
  */
-class TestCodec(codec: Codec) {
+class TestCodec[A](codec: Codec[A]) {
   val downstreamOutput = new mutable.ListBuffer[AnyRef]
   val upstreamOutput = new mutable.ListBuffer[AnyRef]
 
@@ -99,9 +99,11 @@ class TestCodec(codec: Codec) {
     upstreamOutput.toList
   }
 
-  def send(obj: Any) = {
+  def send(obj: Any): Seq[String] = {
     downstreamOutput.clear()
     codec.handleDownstream(context, new DownstreamMessageEvent(pipeline.getChannel, Channels.future(pipeline.getChannel), obj, null))
-    toStrings(downstreamOutput.toList)
+    getDownstream
   }
+
+  def getDownstream = toStrings(downstreamOutput.toList)
 }
