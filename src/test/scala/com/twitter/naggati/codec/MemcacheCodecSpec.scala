@@ -17,6 +17,8 @@
 package com.twitter.naggati
 package codec
 
+import com.twitter.concurrent.ChannelSource
+import com.twitter.util.Future
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel.Channel
 import org.specs.Specification
@@ -85,6 +87,25 @@ class MemcacheCodecSpec extends Specification with JMocker {
 
       codec.send(new MemcacheResponse("CLIENT_ERROR foo") then Codec.Disconnect) mustEqual
         List("CLIENT_ERROR foo\r\n", "<CLOSE>")
+    }
+
+    "write empty response" in {
+      val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
+
+      codec.send(new MemcacheResponse("")) mustEqual Nil
+    }
+
+    "write streaming response" in {
+      val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
+      val channel = new ChannelSource[MemcacheResponse]
+
+      codec.send(new MemcacheResponse("OK", stream=Some(channel))) mustEqual List("OK\r\n")
+
+      Future.join(channel.send(new MemcacheResponse("VALUE foo 0 5", Some("kitty".getBytes))))()
+      codec.getDownstream mustEqual List("OK\r\n", "VALUE foo 0 5\r\nkitty\r\nEND\r\n")
+
+      Future.join(channel.send(new MemcacheResponse("END")))()
+      codec.getDownstream mustEqual List("OK\r\n", "VALUE foo 0 5\r\nkitty\r\nEND\r\n", "END\r\n")
     }
   }
 }
