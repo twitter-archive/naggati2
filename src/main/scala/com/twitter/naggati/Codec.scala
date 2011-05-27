@@ -17,9 +17,11 @@
 package com.twitter.naggati
 
 import scala.annotation.tailrec
+import com.twitter.concurrent
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.frame.FrameDecoder
+import com.twitter.util.Future
 
 /*
  * Convenience exception class to allow decoders to indicate a protocol error.
@@ -40,12 +42,12 @@ trait Encoder[A] {
    * If this written object is the beginning of a stream of similar objects, the `streamer`
    * parameter can be used to send follow-on messages asynchronously.
    */
-  def encode(obj: A, streamer: A => Unit): Option[ChannelBuffer]
+  def encode(obj: A, streamer: => concurrent.ChannelSource[A]): Option[ChannelBuffer]
 }
 
 object Codec {
   val NONE = new Encoder[Unit] {
-    def encode(obj: Unit, streamer: Unit => Unit) = None
+    def encode(obj: Unit, streamer: => concurrent.ChannelSource[Unit]) = None
   }
 
   sealed abstract class Flag
@@ -97,29 +99,43 @@ class Codec[A: Manifest](
 
   private var stage = firstStage
 
+  @volatile private var streaming = false
+
   private def buffer(context: ChannelHandlerContext) = {
     ChannelBuffers.dynamicBuffer(context.getChannel.getConfig.getBufferFactory)
   }
 
-  private def encode(message: A, streamer: A => Unit): Option[ChannelBuffer] = {
-    val buffer = encoder.encode(message, streamer)
+  private def encode(obj: A, context: ChannelHandlerContext): Option[ChannelBuffer] = {
+    val buffer = encoder.encode(obj, streamer(context))
     buffer.foreach { b => bytesWrittenCounter(b.readableBytes) }
     buffer
   }
 
-  private def streamer(context: ChannelHandlerContext)(message: A) {
-    encode(message, streamer(context)).foreach { buffer =>
-      Channels.write(context, Channels.future(context.getChannel), buffer)
+  private def streamer(context: ChannelHandlerContext): concurrent.ChannelSource[A] = {
+    streaming = true
+    val channel = new concurrent.ChannelSource[A]()
+    channel.respond { obj =>
+      encode(obj, context).foreach { buffer =>
+        Channels.write(context, Channels.future(context.getChannel), buffer)
+      }
+      Future.Done
     }
+    channel.closes.onSuccess { _ =>
+      streaming = false
+    }
+    channel
   }
 
   // turn an Encodable message into a Buffer.
   override final def handleDownstream(context: ChannelHandlerContext, event: ChannelEvent) {
     event match {
       case message: DownstreamMessageEvent =>
+        if (streaming) {
+          throw new IllegalArgumentException("Streaming channel was opened but never closed")
+        }
         val obj = message.getMessage
         if (manifest[A].erasure.isAssignableFrom(obj.getClass)) {
-          encode(obj.asInstanceOf[A], streamer(context)) match {
+          encode(obj.asInstanceOf[A], context) match {
             case Some(buffer) =>
               Channels.write(context, message.getFuture, buffer, message.getRemoteAddress)
             case None =>

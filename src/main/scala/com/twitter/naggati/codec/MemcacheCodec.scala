@@ -17,10 +17,10 @@
 package com.twitter.naggati
 package codec
 
-import com.twitter.concurrent.Channel
+import com.twitter.concurrent
 import com.twitter.util.Future
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
-import org.jboss.netty.channel.{Channel => NettyChannel, Channels}
+import org.jboss.netty.channel.{Channel, Channels}
 
 case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesRead: Int) {
   override def toString = {
@@ -34,7 +34,7 @@ case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesR
 case class MemcacheResponse(
   line: String,
   data: Option[Array[Byte]] = None,
-  stream: Option[Channel[MemcacheResponse]] = None
+  stream: Option[concurrent.Channel[MemcacheResponse]] = None
 ) extends Codec.Signalling {
   override def toString = {
     "<Response: " + line + (data match {
@@ -48,12 +48,11 @@ case class MemcacheResponse(
 
   val lineData = line.getBytes("ISO-8859-1")
 
-  def writeAscii(streamer: MemcacheResponse => Unit): Option[ChannelBuffer] = {
+  def writeAscii(streamer: => concurrent.ChannelSource[MemcacheResponse]): Option[ChannelBuffer] = {
     stream.foreach { channel =>
-      channel.respond { response =>
-        streamer(response)
-        Future.Done
-      }
+      val outputStream = streamer
+      channel.pipe(outputStream)
+      channel.closes.onSuccess { _ => outputStream.close() }
     }
 
     if (lineData.size > 0) {
@@ -108,6 +107,7 @@ object MemcacheCodec {
   }
 
   val writeAscii = new Encoder[MemcacheResponse] {
-    def encode(obj: MemcacheResponse, streamer: MemcacheResponse => Unit) = obj.writeAscii(streamer)
+    def encode(obj: MemcacheResponse, streamer: => concurrent.ChannelSource[MemcacheResponse]) =
+      obj.writeAscii(streamer)
   }
 }

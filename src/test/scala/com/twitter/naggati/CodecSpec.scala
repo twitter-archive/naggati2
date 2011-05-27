@@ -16,6 +16,7 @@
 
 package com.twitter.naggati
 
+import com.twitter.concurrent
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel.Channel
 import org.specs.Specification
@@ -27,7 +28,7 @@ class CodecSpec extends Specification with JMocker {
   def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)
 
   val encoder = new Encoder[String] {
-    def encode(x: String, streamer: String => Unit) = {
+    def encode(x: String, streamer: => concurrent.ChannelSource[String]) = {
       val buffer = ChannelBuffers.buffer(x.size)
       buffer.writeBytes(x.getBytes("UTF-8"))
       Some(buffer)
@@ -97,7 +98,7 @@ class CodecSpec extends Specification with JMocker {
 
       "pass-through things it doesn't know" in {
         val encoder = new Encoder[String] {
-          def encode(x: String, streamer: String => Unit) = {
+          def encode(x: String, streamer: => concurrent.ChannelSource[String]) = {
             val modified = "%%" + x + "%%"
             val buffer = ChannelBuffers.buffer(modified.size)
             buffer.writeBytes(modified.getBytes("UTF-8"))
