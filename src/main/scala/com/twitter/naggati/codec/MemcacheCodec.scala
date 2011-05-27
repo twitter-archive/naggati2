@@ -21,7 +21,6 @@ import com.twitter.concurrent.Channel
 import com.twitter.util.Future
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel.{Channel => NettyChannel, Channels}
-import Stages._
 
 case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesRead: Int) {
   override def toString = {
@@ -41,29 +40,25 @@ case class MemcacheResponse(
     "<Response: " + line + (data match {
       case None => ""
       case Some(x) => " data=" + x.size
+    }) + (stream match {
+      case None => ""
+      case Some(_) => " (stream)"
     }) + ">"
   }
 
   val lineData = line.getBytes("ISO-8859-1")
 
-  def writeAscii(nettyChannel: NettyChannel): Option[ChannelBuffer] = {
+  def writeAscii(streamer: MemcacheResponse => Unit): Option[ChannelBuffer] = {
     stream.foreach { channel =>
       channel.respond { response =>
-        response.writeAscii(nettyChannel).foreach { buffer =>
-          Channels.write(nettyChannel, buffer)
-        }
+        streamer(response)
         Future.Done
       }
     }
 
-    val dataSize = if (data.isDefined) (data.get.size + MemcacheCodec.END.size) else 0
-    val size = if (lineData.size > 0) {
-      lineData.size + MemcacheCodec.CRLF.size + dataSize
-    } else {
-      0
-    }
-
-    if (size > 0) {
+    if (lineData.size > 0) {
+      val dataSize = if (data.isDefined) (data.get.size + MemcacheCodec.END.size) else 0
+      val size = lineData.size + MemcacheCodec.CRLF.size + dataSize
       val buffer = ChannelBuffers.buffer(size)
       buffer.writeBytes(lineData)
       buffer.writeBytes(MemcacheCodec.CRLF)
@@ -79,6 +74,8 @@ case class MemcacheResponse(
 }
 
 object MemcacheCodec {
+  import Stages._
+
   val STORAGE_COMMANDS = List("set", "add", "replace", "append", "prepend", "cas")
   val END = "\r\nEND\r\n".getBytes
   val CRLF = "\r\n".getBytes
@@ -111,6 +108,6 @@ object MemcacheCodec {
   }
 
   val writeAscii = new Encoder[MemcacheResponse] {
-    def encode(obj: MemcacheResponse, channel: NettyChannel) = obj.writeAscii(channel)
+    def encode(obj: MemcacheResponse, streamer: MemcacheResponse => Unit) = obj.writeAscii(streamer)
   }
 }

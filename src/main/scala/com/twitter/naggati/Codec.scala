@@ -35,15 +35,17 @@ class ProtocolError(message: String, cause: Throwable) extends Exception(message
 trait Encoder[A] {
   /**
    * Convert an object of type `A` into a `ChannelBuffer`. If no buffer is returned, nothing is
-   * written out. The netty `Channel` object is provided for streaming responses, so that you can
-   * continue sending more data asynchronously after this call.
+   * written out.
+   *
+   * If this written object is the beginning of a stream of similar objects, the `streamer`
+   * parameter can be used to send follow-on messages asynchronously.
    */
-  def encode(obj: A, channel: Channel): Option[ChannelBuffer]
+  def encode(obj: A, streamer: A => Unit): Option[ChannelBuffer]
 }
 
 object Codec {
   val NONE = new Encoder[Unit] {
-    def encode(obj: Unit, channel: Channel) = None
+    def encode(obj: Unit, streamer: Unit => Unit) = None
   }
 
   sealed abstract class Flag
@@ -99,15 +101,29 @@ class Codec[A: Manifest](
     ChannelBuffers.dynamicBuffer(context.getChannel.getConfig.getBufferFactory)
   }
 
+  private def encode(message: A, streamer: A => Unit): Option[ChannelBuffer] = {
+    val buffer = encoder.encode(message, streamer)
+    buffer.foreach { b => bytesWrittenCounter(b.readableBytes) }
+    buffer
+  }
+
+  private def streamer(context: ChannelHandlerContext)(message: A) {
+    encode(message, streamer(context)).foreach { buffer =>
+      Channels.write(context, Channels.future(context.getChannel), buffer)
+    }
+  }
+
   // turn an Encodable message into a Buffer.
   override final def handleDownstream(context: ChannelHandlerContext, event: ChannelEvent) {
     event match {
       case message: DownstreamMessageEvent =>
         val obj = message.getMessage
         if (manifest[A].erasure.isAssignableFrom(obj.getClass)) {
-          encoder.encode(obj.asInstanceOf[A], context.getChannel).foreach { buffer =>
-            bytesWrittenCounter(buffer.readableBytes)
-            Channels.write(context, message.getFuture, buffer, message.getRemoteAddress)
+          encode(obj.asInstanceOf[A], streamer(context)) match {
+            case Some(buffer) =>
+              Channels.write(context, message.getFuture, buffer, message.getRemoteAddress)
+            case None =>
+              message.getFuture.setSuccess()
           }
         } else {
           context.sendDownstream(event)
