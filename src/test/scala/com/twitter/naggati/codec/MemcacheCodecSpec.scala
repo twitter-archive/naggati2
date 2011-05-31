@@ -98,7 +98,7 @@ class MemcacheCodecSpec extends Specification with JMocker {
       val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
       val channel = new LatchedChannelSource[MemcacheResponse]
 
-      codec.send(new MemcacheResponse("OK", stream=Some(channel))) mustEqual List("OK\r\n")
+      codec.send(new MemcacheResponse("OK") then Codec.Stream(channel)) mustEqual List("OK\r\n")
 
       Future.join(channel.send(new MemcacheResponse("VALUE foo 0 5", Some("kitty".getBytes))))()
       codec.getDownstream mustEqual List("OK\r\n", "VALUE foo 0 5\r\nkitty\r\nEND\r\n")

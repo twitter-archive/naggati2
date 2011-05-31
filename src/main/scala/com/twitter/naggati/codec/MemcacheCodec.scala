@@ -33,23 +33,19 @@ case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesR
 
 case class MemcacheResponse(
   line: String,
-  data: Option[Array[Byte]] = None,
-  stream: Option[LatchedChannelSource[MemcacheResponse]] = None
+  data: Option[Array[Byte]] = None
 ) extends Codec.Signalling {
   override def toString = {
     "<Response: " + line + (data match {
       case None => ""
       case Some(x) => " data=" + x.size
-    }) + (stream match {
-      case None => ""
-      case Some(_) => " (stream)"
     }) + ">"
   }
 
   val lineData = line.getBytes("ISO-8859-1")
 
-  def writeAscii(controller: CodecControl[MemcacheResponse]): Option[ChannelBuffer] = {
-    val rv = if (lineData.size > 0) {
+  def writeAscii(): Option[ChannelBuffer] = {
+    if (lineData.size > 0) {
       val dataSize = if (data.isDefined) (data.get.size + MemcacheCodec.END.size) else 0
       val size = lineData.size + MemcacheCodec.CRLF.size + dataSize
       val buffer = ChannelBuffers.buffer(size)
@@ -63,10 +59,6 @@ case class MemcacheResponse(
     } else {
       None
     }
-
-    stream.foreach { channel => controller.startStreaming(channel) }
-
-    rv
   }
 }
 
@@ -105,7 +97,6 @@ object MemcacheCodec {
   }
 
   val writeAscii = new Encoder[MemcacheResponse] {
-    def encode(obj: MemcacheResponse, controller: CodecControl[MemcacheResponse]) =
-      obj.writeAscii(controller)
+    def encode(obj: MemcacheResponse) = obj.writeAscii()
   }
 }

@@ -31,14 +31,6 @@ class ProtocolError(message: String, cause: Throwable) extends Exception(message
 }
 
 /**
- * Passed to an `Encoder` as a hook for unusual actions. Currently only used to start "streaming"
- * mode, where a `LatchedChannelSource` can be used to send messages asynchronously.
- */
-trait CodecControl[A] {
-  def startStreaming(channel: LatchedChannelSource[A])
-}
-
-/**
  * An Encoder turns things of type `A` into `ChannelBuffer`s, for outbound traffic (server
  * responses or client requests).
  */
@@ -46,20 +38,18 @@ trait Encoder[A] {
   /**
    * Convert an object of type `A` into a `ChannelBuffer`. If no buffer is returned, nothing is
    * written out.
-   *
-   * If this written object is the beginning of a stream of similar objects, the `controller`
-   * parameter can be used to send follow-on messages asynchronously.
    */
-  def encode(obj: A, controller: CodecControl[A]): Option[ChannelBuffer]
+  def encode(obj: A): Option[ChannelBuffer]
 }
 
 object Codec {
   val NONE = new Encoder[Unit] {
-    def encode(obj: Unit, controller: CodecControl[Unit]) = None
+    def encode(obj: Unit) = None
   }
 
   sealed abstract class Flag
   case object Disconnect extends Flag
+  case class Stream[A](stream: LatchedChannelSource[A]) extends Flag
 
   /**
    * Mixin for outbound (write-side) codec objects to allow them to be used for signalling
@@ -85,6 +75,10 @@ object Codec {
     }
 
     def signals = flags
+
+    override def toString = {
+      super.toString + flags.map { _.toString }.mkString(" with Signalling(", ", ", ")")
+    }
   }
 }
 
@@ -113,24 +107,23 @@ class Codec[A: Manifest](
     ChannelBuffers.dynamicBuffer(context.getChannel.getConfig.getBufferFactory)
   }
 
-  private def encode(obj: A, context: ChannelHandlerContext): Option[ChannelBuffer] = {
-    val control = new CodecControl[A] {
-      def startStreaming(channel: LatchedChannelSource[A]) {
-        streaming = true
-        channel.closes.onSuccess { _ =>
-          streaming = false
-        }
-        channel.respond { obj =>
-          encode(obj, context).foreach { buffer =>
-            Channels.write(context, Channels.future(context.getChannel), buffer)
-          }
-          Future.Done
-        }
-      }
-    }
-    val buffer = encoder.encode(obj, control)
+  private def encode(obj: A): Option[ChannelBuffer] = {
+    val buffer = encoder.encode(obj)
     buffer.foreach { b => bytesWrittenCounter(b.readableBytes) }
     buffer
+  }
+
+  private def startStreaming(context: ChannelHandlerContext, channel: LatchedChannelSource[A]) {
+    streaming = true
+    channel.closes.onSuccess { _ =>
+      streaming = false
+    }
+    channel.respond { obj =>
+      encode(obj).foreach { buffer =>
+        Channels.write(context, Channels.future(context.getChannel), buffer)
+      }
+      Future.Done
+    }
   }
 
   // turn an Encodable message into a Buffer.
@@ -142,7 +135,7 @@ class Codec[A: Manifest](
         }
         val obj = message.getMessage
         if (manifest[A].erasure.isAssignableFrom(obj.getClass)) {
-          encode(obj.asInstanceOf[A], context) match {
+          encode(obj.asInstanceOf[A]) match {
             case Some(buffer) =>
               Channels.write(context, message.getFuture, buffer, message.getRemoteAddress)
             case None =>
@@ -154,7 +147,10 @@ class Codec[A: Manifest](
         if (obj.isInstanceOf[Codec.Signalling]) {
           obj.asInstanceOf[Codec.Signalling].signals.foreach { signal =>
             signal match {
-              case Codec.Disconnect => context.getChannel.close()
+              case Codec.Disconnect =>
+                context.getChannel.close()
+              case Codec.Stream(stream) =>
+                startStreaming(context, stream.asInstanceOf[LatchedChannelSource[A]])
             }
           }
         }
