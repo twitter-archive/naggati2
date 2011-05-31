@@ -66,5 +66,22 @@ class LatchedChannelSourceSpec extends Specification {
       received.toList mustEqual List("hello", "kitty")
       channel.ready mustEqual true
     }
+
+    "not actually close until the channel is latched" in {
+      val channel = new LatchedChannelSource[String]
+      channel.send("hello")
+      channel.close()
+      channel.ready mustEqual false
+      channel.buffer.size mustEqual 1
+      channel.isOpen mustEqual true
+
+      var received = new mutable.ListBuffer[String]
+      channel.respond { s =>
+        received += s
+        Future.Done
+      }
+      received.toList mustEqual List("hello")
+      channel.isOpen mustEqual false
+    }
   }
 }

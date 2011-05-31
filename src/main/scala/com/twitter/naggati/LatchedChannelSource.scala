@@ -16,6 +16,7 @@
 
 package com.twitter.naggati
 
+import java.util.concurrent.CountDownLatch
 import scala.collection.mutable
 import com.twitter.concurrent.{ChannelSource, Observer}
 import com.twitter.util.Future
@@ -25,8 +26,9 @@ import com.twitter.util.Future
  * As soon as there is at least one receiver, it latches open and never buffers again.
  */
 class LatchedChannelSource[A] extends ChannelSource[A] {
-  var buffer = new mutable.ListBuffer[A]
-  var ready = false
+  protected[naggati] var buffer = new mutable.ListBuffer[A]
+  protected[naggati] var ready = false
+  protected[naggati] var closed = false
 
   numObservers.respond {
     case 1 =>
@@ -34,20 +36,32 @@ class LatchedChannelSource[A] extends ChannelSource[A] {
         if (!ready) {
           buffer.foreach { item => super.send(item) }
           ready = true
+          if (closed) {
+            super.close()
+          }
         }
       }
       Future.Done
   }
 
+  // if the channel isn't ready yet, execute some code inside the lock.
+  // return whether the channel was ready: true = channel ready; false = code was executed
+  private def checkReady(ifNot: => Unit): Boolean = {
+    synchronized {
+      if (!ready) ifNot
+      ready
+    }
+  }
+
+  override def close() {
+    // don't allow a close() to take effect until after we latch.
+    if (checkReady { closed = true }) {
+      super.close()
+    }
+  }
+
   override def send(a: A): Seq[Future[Observer]] = {
-    if (synchronized {
-      if (!ready) {
-        buffer += a
-        false
-      } else {
-        true
-      }
-    }) {
+    if (checkReady { buffer += a }) {
       super.send(a)
     } else {
       Seq()
