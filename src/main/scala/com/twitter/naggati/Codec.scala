@@ -17,7 +17,7 @@
 package com.twitter.naggati
 
 import scala.annotation.tailrec
-import com.twitter.concurrent
+import scala.collection.mutable
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.frame.FrameDecoder
@@ -31,6 +31,14 @@ class ProtocolError(message: String, cause: Throwable) extends Exception(message
 }
 
 /**
+ * Passed to an `Encoder` as a hook for unusual actions. Currently only used to start "streaming"
+ * mode, where a `LatchedChannelSource` can be used to send messages asynchronously.
+ */
+trait CodecControl[A] {
+  def startStreaming(channel: LatchedChannelSource[A])
+}
+
+/**
  * An Encoder turns things of type `A` into `ChannelBuffer`s, for outbound traffic (server
  * responses or client requests).
  */
@@ -39,15 +47,15 @@ trait Encoder[A] {
    * Convert an object of type `A` into a `ChannelBuffer`. If no buffer is returned, nothing is
    * written out.
    *
-   * If this written object is the beginning of a stream of similar objects, the `streamer`
+   * If this written object is the beginning of a stream of similar objects, the `controller`
    * parameter can be used to send follow-on messages asynchronously.
    */
-  def encode(obj: A, streamer: => concurrent.ChannelSource[A]): Option[ChannelBuffer]
+  def encode(obj: A, controller: CodecControl[A]): Option[ChannelBuffer]
 }
 
 object Codec {
   val NONE = new Encoder[Unit] {
-    def encode(obj: Unit, streamer: => concurrent.ChannelSource[Unit]) = None
+    def encode(obj: Unit, controller: CodecControl[Unit]) = None
   }
 
   sealed abstract class Flag
@@ -106,24 +114,23 @@ class Codec[A: Manifest](
   }
 
   private def encode(obj: A, context: ChannelHandlerContext): Option[ChannelBuffer] = {
-    val buffer = encoder.encode(obj, streamer(context))
+    val control = new CodecControl[A] {
+      def startStreaming(channel: LatchedChannelSource[A]) {
+        streaming = true
+        channel.closes.onSuccess { _ =>
+          streaming = false
+        }
+        channel.respond { obj =>
+          encode(obj, context).foreach { buffer =>
+            Channels.write(context, Channels.future(context.getChannel), buffer)
+          }
+          Future.Done
+        }
+      }
+    }
+    val buffer = encoder.encode(obj, control)
     buffer.foreach { b => bytesWrittenCounter(b.readableBytes) }
     buffer
-  }
-
-  private def streamer(context: ChannelHandlerContext): concurrent.ChannelSource[A] = {
-    streaming = true
-    val channel = new concurrent.ChannelSource[A]()
-    channel.respond { obj =>
-      encode(obj, context).foreach { buffer =>
-        Channels.write(context, Channels.future(context.getChannel), buffer)
-      }
-      Future.Done
-    }
-    channel.closes.onSuccess { _ =>
-      streaming = false
-    }
-    channel
   }
 
   // turn an Encodable message into a Buffer.

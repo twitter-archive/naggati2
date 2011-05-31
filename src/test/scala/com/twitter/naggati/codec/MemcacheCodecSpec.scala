@@ -17,7 +17,6 @@
 package com.twitter.naggati
 package codec
 
-import com.twitter.concurrent.ChannelSource
 import com.twitter.util.Future
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel.Channel
@@ -97,7 +96,7 @@ class MemcacheCodecSpec extends Specification with JMocker {
 
     "write streaming response" in {
       val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
-      val channel = new ChannelSource[MemcacheResponse]
+      val channel = new LatchedChannelSource[MemcacheResponse]
 
       codec.send(new MemcacheResponse("OK", stream=Some(channel))) mustEqual List("OK\r\n")
 
