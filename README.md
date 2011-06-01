@@ -140,6 +140,21 @@ as a `ChannelHandler` in a netty pipeline:
 This `decoder` object can now be injected into the pipeline for a new netty
 channel.
 
+## Encoding
+
+For symmetry, naggati also defines an `Encoder` trait for converting objects
+into bytes (or more specifically, netty `ChannelBuffer`s). If an encoder has
+`Codec.Signalling` attached as a mixin, encoded objects may also have other
+actions attached as flags.
+
+For example, to send an error response back over memcache protocol and then
+disconnect, you can do:
+
+    channel.write(new MemcacheResponse("CLIENT_ERROR")) then Codec.Disconnect
+
+You can also attach a stream to a response, which is useful when using a netty
+library like [finagle](http://github.com/twitter/finagle).
+
 ## Other examples
 
 Check out `HttpRequest` and `MemcacheRequest` in the codec source folder. More
