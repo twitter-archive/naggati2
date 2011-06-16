@@ -16,7 +16,9 @@
 
 package com.twitter.naggati
 
+import com.twitter.concurrent
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
+import org.jboss.netty.channel.Channel
 import org.specs.Specification
 import org.specs.mock.JMocker
 import Stages._
@@ -25,11 +27,12 @@ import test.TestCodec
 class CodecSpec extends Specification with JMocker {
   def wrap(s: String) = ChannelBuffers.wrappedBuffer(s.getBytes)
 
-  val encoder: PartialFunction[Any, ChannelBuffer] = {
-    case x: String =>
+  val encoder = new Encoder[String] {
+    def encode(x: String) = {
       val buffer = ChannelBuffers.buffer(x.size)
       buffer.writeBytes(x.getBytes("UTF-8"))
-      buffer
+      Some(buffer)
+    }
   }
 
   "Codec" should {
@@ -87,9 +90,28 @@ class CodecSpec extends Specification with JMocker {
     }
 
     "encode" in {
-      val (codec, counter) = TestCodec(readLine(true, "UTF-8") { line => emit(line) }, encoder)
-      codec.send("hello") mustEqual List("hello")
-      counter.writtenBytes mustEqual 5
+      "basic" in {
+        val (codec, counter) = TestCodec(readLine(true, "UTF-8") { line => emit(line) }, encoder)
+        codec.send("hello") mustEqual List("hello")
+        counter.writtenBytes mustEqual 5
+      }
+
+      "pass-through things it doesn't know" in {
+        val encoder = new Encoder[String] {
+          def encode(x: String) = {
+            val modified = "%%" + x + "%%"
+            val buffer = ChannelBuffers.buffer(modified.size)
+            buffer.writeBytes(modified.getBytes("UTF-8"))
+            Some(buffer)
+          }
+        }
+
+        val (codec, counter) = TestCodec(readLine(true, "UTF-8") { line => emit(line) }, encoder)
+        codec.send("hello") mustEqual List("%%hello%%")
+        counter.writtenBytes mustEqual 9
+        codec.send(23) mustEqual List("23")
+        counter.writtenBytes mustEqual 9
+      }
     }
   }
 }

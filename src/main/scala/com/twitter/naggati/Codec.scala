@@ -17,9 +17,11 @@
 package com.twitter.naggati
 
 import scala.annotation.tailrec
+import scala.collection.mutable
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel._
 import org.jboss.netty.handler.codec.frame.FrameDecoder
+import com.twitter.util.Future
 
 /*
  * Convenience exception class to allow decoders to indicate a protocol error.
@@ -28,9 +30,55 @@ class ProtocolError(message: String, cause: Throwable) extends Exception(message
   def this(message: String) = this(message, null)
 }
 
+/**
+ * An Encoder turns things of type `A` into `ChannelBuffer`s, for outbound traffic (server
+ * responses or client requests).
+ */
+trait Encoder[A] {
+  /**
+   * Convert an object of type `A` into a `ChannelBuffer`. If no buffer is returned, nothing is
+   * written out.
+   */
+  def encode(obj: A): Option[ChannelBuffer]
+}
+
 object Codec {
-  val NONE: PartialFunction[Any, ChannelBuffer] = {
-    case null => null
+  val NONE = new Encoder[Unit] {
+    def encode(obj: Unit) = None
+  }
+
+  sealed abstract class Flag
+  case object Disconnect extends Flag
+  case class Stream[A](stream: LatchedChannelSource[A]) extends Flag
+
+  /**
+   * Mixin for outbound (write-side) codec objects to allow them to be used for signalling
+   * out-of-bound messages to the codec engine.
+   *
+   * Primarily this is used to signal that the connection should be closed after writing the
+   * object. For example, if `Response` is a case class for writing a response, and `Signalling`
+   * is mixed in, you can use:
+   *
+   *     channel.write(new Response(...) then Codec.Disconnect)
+   *
+   * to signal that the connection should be closed after writing the response.
+   */
+  trait Signalling {
+    private var flags: List[Flag] = Nil
+
+    /**
+     * Add a signal flag to this outbound message.
+     */
+    def then(flag: Flag): this.type = {
+      flags = flag :: flags
+      this
+    }
+
+    def signals = flags
+
+    override def toString = {
+      super.toString + flags.map { _.toString }.mkString(" with Signalling(", ", ", ")")
+    }
   }
 }
 
@@ -42,29 +90,69 @@ object DontCareCounter extends (Int => Unit) {
  * A netty ChannelHandler for decoding data into protocol objects on the way in, and packing
  * objects into byte arrays on the way out. Optionally, the bytes in/out are tracked.
  */
-class Codec(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer],
-            bytesReadCounter: Int => Unit, bytesWrittenCounter: Int => Unit)
-extends FrameDecoder with ChannelDownstreamHandler {
-  def this(firstStage: Stage, encoder: PartialFunction[Any, ChannelBuffer]) =
+class Codec[A: Manifest](
+  firstStage: Stage,
+  encoder: Encoder[A],
+  bytesReadCounter: Int => Unit,
+  bytesWrittenCounter: Int => Unit
+) extends FrameDecoder with ChannelDownstreamHandler {
+  def this(firstStage: Stage, encoder: Encoder[A]) =
     this(firstStage, encoder, DontCareCounter, DontCareCounter)
 
   private var stage = firstStage
 
+  @volatile private var streaming = false
+
   private def buffer(context: ChannelHandlerContext) = {
-    ChannelBuffers.dynamicBuffer(context.getChannel().getConfig().getBufferFactory())
+    ChannelBuffers.dynamicBuffer(context.getChannel.getConfig.getBufferFactory)
+  }
+
+  private def encode(obj: A): Option[ChannelBuffer] = {
+    val buffer = encoder.encode(obj)
+    buffer.foreach { b => bytesWrittenCounter(b.readableBytes) }
+    buffer
+  }
+
+  private def startStreaming(context: ChannelHandlerContext, channel: LatchedChannelSource[A]) {
+    streaming = true
+    channel.closes.onSuccess { _ =>
+      streaming = false
+    }
+    channel.respond { obj =>
+      encode(obj).foreach { buffer =>
+        Channels.write(context, Channels.future(context.getChannel), buffer)
+      }
+      Future.Done
+    }
   }
 
   // turn an Encodable message into a Buffer.
   override final def handleDownstream(context: ChannelHandlerContext, event: ChannelEvent) {
     event match {
       case message: DownstreamMessageEvent =>
-        val obj = message.getMessage()
-        if (encoder.isDefinedAt(obj)) {
-          val buffer = encoder(obj)
-          bytesWrittenCounter(buffer.readableBytes)
-          Channels.write(context, message.getFuture, buffer, message.getRemoteAddress)
+        if (streaming) {
+          throw new IllegalArgumentException("Streaming channel was opened but never closed")
+        }
+        val obj = message.getMessage
+        if (manifest[A].erasure.isAssignableFrom(obj.getClass)) {
+          encode(obj.asInstanceOf[A]) match {
+            case Some(buffer) =>
+              Channels.write(context, message.getFuture, buffer, message.getRemoteAddress)
+            case None =>
+              message.getFuture.setSuccess()
+          }
         } else {
           context.sendDownstream(event)
+        }
+        if (obj.isInstanceOf[Codec.Signalling]) {
+          obj.asInstanceOf[Codec.Signalling].signals.foreach { signal =>
+            signal match {
+              case Codec.Disconnect =>
+                context.getChannel.close()
+              case Codec.Stream(stream) =>
+                startStreaming(context, stream.asInstanceOf[LatchedChannelSource[A]])
+            }
+          }
         }
       case _ =>
         context.sendDownstream(event)
@@ -93,5 +181,9 @@ extends FrameDecoder with ChannelDownstreamHandler {
         stage = firstStage
         obj
     }
+  }
+
+  def pipelineFactory = new ChannelPipelineFactory() {
+    def getPipeline = Channels.pipeline(Codec.this)
   }
 }
