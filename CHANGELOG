@@ -1,0 +1,11 @@
+2.2.0
+-----
+release: 16 June 2011
+
+- Made Encoder[A] a first-class trait.
+
+- Added Signalling trait which can be mixed into a response class to allow signals to be written
+  back through naggati by an Encoder.
+
+- Added stream mode (with a Signalling flag) to allow multiple responses to be sent for a single
+  request, particularly for finagle.
