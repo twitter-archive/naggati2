@@ -140,14 +140,60 @@ as a `ChannelHandler` in a netty pipeline:
 This `decoder` object can now be injected into the pipeline for a new netty
 channel.
 
-## Other examples
+## Encoding
+
+The `Encoder[A]` trait defines a conversion of objects of type A into bytes.
+It has only one method:
+
+    def encode(obj: A): Option[ChannelBuffer]
+
+which should return `None` if the object doesn't require any bytes to be
+written, or a `ChannelBuffer`, which is netty's byte array wrapper.
+
+You can mix in the `Signalling` trait on your response class to attach signal
+flags to outbound messages. `Signalling` defines a method `then(flag)` to
+attach these flags. The defined flags are:
+
+- `Disconnect`: disconnect after sending this message
+- `Stream(channel)`: listen to the attached channel for a continuing stream
+  until it's closed
+
+For example, to disconnect after sending an error message, you might use:
+
+    channel.write(new MemcacheResponse("CLIENT_ERROR") then Codec.Disconnect)
+
+The `Stream` flag is useful for returning a stream from a request/response
+cycle. To stream an HTTP response, for example, you could send a normal "OK"
+response with a channel attached, and `send` data in the background.
+
+A `Stream` contains a `LatchedChannelSource` which is a subclass of
+[twitter-util](http://github.com/twitter/util) `ChannelSource`. As data is
+posted to the channel, naggati will run it through the encoder and send it
+down to netty, just as if it had been received normally from the pipeline.
+When the channel is closed, the encoder returns to its normal state. It's a
+runtime error to try to send normal objects or open a new stream while the
+stream channel is open.
+
+## Codec
+
+For convenience, naggati defines a `Codec` class that wraps a decoder and
+encoder and can be dropped into a netty pipeline. A codec contains a starting
+`Stage` for decoding inbound objects, an `Encoder` for encoding outbound
+objects, and optional counter methods for tracking the in/out bytes.
+
+To build a pipeline factory for netty's use, you can usually write something
+like this:
+
+    val pipelineFactory = new Codec(decoder, encoder).pipelineFactory
+
+The [kestrel](http://github.com/robey/kestrel) source code has a good example
+of using a naggati `Codec` to construct a
+[finagle](http://github.com/twitter/finagle) server.
+
+## Examples
 
 Check out `HttpRequest` and `MemcacheRequest` in the codec source folder. More
 may be added later.
-
-Also, kestrel 2.0 sets up a memcache server using `MemcacheRequest`. Check out
-`Kestrel.scala` to see an example of initializing netty and setting up a
-pipeline using a naggati decoder.
 
 ## How to use naggati in your own project
 

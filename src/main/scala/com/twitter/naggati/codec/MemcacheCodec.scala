@@ -17,8 +17,10 @@
 package com.twitter.naggati
 package codec
 
+import com.twitter.concurrent
+import com.twitter.util.Future
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
-import Stages._
+import org.jboss.netty.channel.{Channel, Channels}
 
 case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesRead: Int) {
   override def toString = {
@@ -29,10 +31,10 @@ case class MemcacheRequest(line: List[String], data: Option[Array[Byte]], bytesR
   }
 }
 
-case class MemcacheResponse(line: String, data: Option[Array[Byte]]) {
-  def this(line: String) = this(line, None)
-  def this(line: String, data: Array[Byte]) = this(line, Some(data))
-
+case class MemcacheResponse(
+  line: String,
+  data: Option[Array[Byte]] = None
+) extends Codec.Signalling {
   override def toString = {
     "<Response: " + line + (data match {
       case None => ""
@@ -42,21 +44,27 @@ case class MemcacheResponse(line: String, data: Option[Array[Byte]]) {
 
   val lineData = line.getBytes("ISO-8859-1")
 
-  def writeAscii() = {
-    val size = lineData.size + MemcacheCodec.CRLF.size +
-      (if (data.isDefined) (data.get.size + MemcacheCodec.END.size) else 0)
-    val buffer = ChannelBuffers.buffer(size)
-    buffer.writeBytes(lineData)
-    buffer.writeBytes(MemcacheCodec.CRLF)
-    data.foreach { x =>
-      buffer.writeBytes(x)
-      buffer.writeBytes(MemcacheCodec.END)
+  def writeAscii(): Option[ChannelBuffer] = {
+    if (lineData.size > 0) {
+      val dataSize = if (data.isDefined) (data.get.size + MemcacheCodec.END.size) else 0
+      val size = lineData.size + MemcacheCodec.CRLF.size + dataSize
+      val buffer = ChannelBuffers.buffer(size)
+      buffer.writeBytes(lineData)
+      buffer.writeBytes(MemcacheCodec.CRLF)
+      data.foreach { x =>
+        buffer.writeBytes(x)
+        buffer.writeBytes(MemcacheCodec.END)
+      }
+      Some(buffer)
+    } else {
+      None
     }
-    buffer
   }
 }
 
 object MemcacheCodec {
+  import Stages._
+
   val STORAGE_COMMANDS = List("set", "add", "replace", "append", "prepend", "cas")
   val END = "\r\nEND\r\n".getBytes
   val CRLF = "\r\n".getBytes
@@ -88,8 +96,7 @@ object MemcacheCodec {
     }
   }
 
-  val writeAscii: PartialFunction[Any, ChannelBuffer] = {
-    case response: MemcacheResponse =>
-      response.writeAscii()
+  val writeAscii = new Encoder[MemcacheResponse] {
+    def encode(obj: MemcacheResponse) = obj.writeAscii()
   }
 }
