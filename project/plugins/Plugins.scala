@@ -1,9 +1,23 @@
 import sbt._
 
 class Plugins(info: ProjectInfo) extends PluginDefinition(info) {
-  val twitterMaven = "twitter.com" at "http://maven.twttr.com/"
-  val defaultProject = "com.twitter" % "standard-project" % "0.11.1-SNAPSHOT"
+  import scala.collection.jcl
+  val environment = jcl.Map(System.getenv())
+  def isSBTOpenTwitter = environment.get("SBT_OPEN_TWITTER").isDefined
+  def isSBTTwitter = environment.get("SBT_TWITTER").isDefined
 
-  val sbtIdeaRepo = "sbt-idea-repo" at "http://mpeltonen.github.com/maven/"
-  val sbtIdea = "com.github.mpeltonen" % "sbt-idea-plugin" % "0.3.0"
+  override def repositories = if (isSBTOpenTwitter) {
+    Set("twitter.artifactory" at "http://artifactory.local.twitter.com/open-source/")
+  } else if (isSBTTwitter) {
+    Set("twitter.artifactory" at "http://artifactory.local.twitter.com/repo/")
+  } else {
+    super.repositories ++ Set(
+      "twitter.com" at "http://maven.twttr.com/",
+      "scala-tools" at "http://scala-tools.org/repo-releases/",
+      "freemarker" at "http://freemarker.sourceforge.net/maven2/"
+    )
+  }
+  override def ivyRepositories = Seq(Resolver.defaultLocal(None)) ++ repositories
+
+  val standardProject = "com.twitter" % "standard-project" % "1.0.0"
 }
