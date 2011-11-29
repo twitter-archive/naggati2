@@ -50,6 +50,7 @@ object Codec {
   sealed abstract class Flag
   case object Disconnect extends Flag
   case class Stream[A](stream: LatchedChannelSource[A]) extends Flag
+  case object EndStream extends Flag
 
   /**
    * Mixin for outbound (write-side) codec objects to allow them to be used for signalling
@@ -99,26 +100,34 @@ class Codec[A: Manifest](
   def this(firstStage: Stage, encoder: Encoder[A]) =
     this(firstStage, encoder, DontCareCounter, DontCareCounter)
 
-  private var stage = firstStage
+  private[this] var stage = firstStage
 
-  @volatile private var streaming = false
+  @volatile private[this] var streaming = false
 
-  private def buffer(context: ChannelHandlerContext) = {
+  private[this] def buffer(context: ChannelHandlerContext) = {
     ChannelBuffers.dynamicBuffer(context.getChannel.getConfig.getBufferFactory)
   }
 
-  private def encode(obj: A): Option[ChannelBuffer] = {
+  private[this] def encode(obj: A): Option[ChannelBuffer] = {
     val buffer = encoder.encode(obj)
     buffer.foreach { b => bytesWrittenCounter(b.readableBytes) }
     buffer
   }
 
-  private def startStreaming(context: ChannelHandlerContext, channel: LatchedChannelSource[A]) {
+  private[this] def startStreaming(context: ChannelHandlerContext, channel: LatchedChannelSource[A]) {
     streaming = true
-    channel.closes.onSuccess { _ =>
+    channel.closes onSuccess { _ =>
       streaming = false
     }
-    channel.respond { obj =>
+    channel respond { obj =>
+      if (obj.isInstanceOf[Codec.Signalling]) {
+        obj.asInstanceOf[Codec.Signalling].signals.foreach { signal =>
+          signal match {
+            case Codec.EndStream => streaming = false
+            case _ =>
+          }
+        }
+      }
       encode(obj).foreach { buffer =>
         Channels.write(context, Channels.future(context.getChannel), buffer)
       }
