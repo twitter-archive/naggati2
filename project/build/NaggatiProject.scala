@@ -16,5 +16,5 @@ class NaggatiProject(info: ProjectInfo) extends StandardLibraryProject(info)
   val asm = "asm" % "asm" % "1.5.3" % "test"
   val objenesis = "org.objenesis" % "objenesis" % "1.1" % "test"
 
-  override def subversionRepository = Some("http://svn.local.twitter.com/maven-public")
+  override def subversionRepository = Some("https://svn.local.twitter.com/maven-public")
 }
