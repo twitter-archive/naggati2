@@ -40,7 +40,7 @@ object TestCodec {
  * Netty doesn't appear to have a good set of fake objects yet, so this wraps a Codec in a fake
  * environment that collects emitted objects and returns them.
  */
-class TestCodec[A](codec: Codec[A]) {
+class TestCodec[A](val codec: Codec[A]) {
   val downstreamOutput = new mutable.ListBuffer[AnyRef]
   val upstreamOutput = new mutable.ListBuffer[AnyRef]
 

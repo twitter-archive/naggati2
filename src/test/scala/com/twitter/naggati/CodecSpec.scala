@@ -112,6 +112,32 @@ class CodecSpec extends Specification with JMocker {
         codec.send(23) mustEqual List("23")
         counter.writtenBytes mustEqual 9
       }
+
+      case class Response(message: String) extends Codec.Signalling
+
+      "streaming response" in {
+        val encoder = new Encoder[Response] {
+          def encode(x: Response) = {
+            val modified = "Response(" + x.message + ")"
+            val buffer = ChannelBuffers.buffer(modified.size)
+            buffer.writeBytes(modified.getBytes("UTF-8"))
+            Some(buffer)
+          }
+        }
+
+        val (codec, counter) = TestCodec(readLine(true, "UTF-8") { line => emit(line) }, encoder)
+        val channel = new LatchedChannelSource[Response]
+        codec.send(Response("hello") then Codec.Stream(channel)) mustEqual List("Response(hello)")
+        codec.codec.isStreaming mustEqual true
+
+        channel.send(Response("surprise!"))
+        codec.getDownstream mustEqual List("Response(hello)", "Response(surprise!)")
+        codec.codec.isStreaming mustEqual true
+
+        channel.send(Response("done") then Codec.EndStream)
+        codec.getDownstream mustEqual List("Response(hello)", "Response(surprise!)", "Response(done)")
+        codec.codec.isStreaming mustEqual false
+      }
     }
   }
 }

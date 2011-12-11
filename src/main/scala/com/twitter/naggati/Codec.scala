@@ -71,6 +71,9 @@ object Codec {
      * Add a signal flag to this outbound message.
      */
     def then(flag: Flag): this.type = {
+      if (getClass.getName.endsWith("$")) {
+        throw new Exception("Singletons can't be used for streaming.")
+      }
       flags = flag :: flags
       this
     }
@@ -104,6 +107,8 @@ class Codec[A: Manifest](
 
   @volatile private[this] var streaming = false
 
+  def isStreaming = streaming
+
   private[this] def buffer(context: ChannelHandlerContext) = {
     ChannelBuffers.dynamicBuffer(context.getChannel.getConfig.getBufferFactory)
   }
@@ -114,19 +119,26 @@ class Codec[A: Manifest](
     buffer
   }
 
+  private[this] def endStreaming(context: ChannelHandlerContext) {
+    streaming = false
+    context.getChannel.setReadable(true)
+  }
+
   private[this] def startStreaming(context: ChannelHandlerContext, channel: LatchedChannelSource[A]) {
     streaming = true
+    context.getChannel.setReadable(false)
     channel.closes onSuccess { _ =>
-      streaming = false
+      endStreaming(context)
     }
     channel respond { obj =>
-      if (obj.isInstanceOf[Codec.Signalling]) {
-        obj.asInstanceOf[Codec.Signalling].signals.foreach { signal =>
-          signal match {
-            case Codec.EndStream => streaming = false
+      obj match {
+        case signalling: Codec.Signalling => {
+          signalling.signals.foreach {
+            case Codec.EndStream => endStreaming(context)
             case _ =>
           }
         }
+        case _ =>
       }
       encode(obj).foreach { buffer =>
         Channels.write(context, Channels.future(context.getChannel), buffer)
@@ -138,7 +150,7 @@ class Codec[A: Manifest](
   // turn an Encodable message into a Buffer.
   override final def handleDownstream(context: ChannelHandlerContext, event: ChannelEvent) {
     event match {
-      case message: DownstreamMessageEvent =>
+      case message: DownstreamMessageEvent => {
         if (streaming) {
           throw new IllegalArgumentException("Streaming channel was opened but never closed")
         }
@@ -153,18 +165,20 @@ class Codec[A: Manifest](
         } else {
           context.sendDownstream(event)
         }
-        if (obj.isInstanceOf[Codec.Signalling]) {
-          obj.asInstanceOf[Codec.Signalling].signals.foreach { signal =>
-            signal match {
-              case Codec.Disconnect =>
-                context.getChannel.close()
-              case Codec.Stream(stream) =>
+        obj match {
+          case signalling: Codec.Signalling => {
+            signalling.signals.foreach {
+              case Codec.Disconnect => context.getChannel.close()
+              case Codec.Stream(stream) => {
                 startStreaming(context, stream.asInstanceOf[LatchedChannelSource[A]])
+              }
+              case _ =>
             }
           }
+          case _ =>
         }
-      case _ =>
-        context.sendDownstream(event)
+      }
+      case _ => context.sendDownstream(event)
     }
   }
 
