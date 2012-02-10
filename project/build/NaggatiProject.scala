@@ -6,10 +6,10 @@ class NaggatiProject(info: ProjectInfo) extends StandardLibraryProject(info)
   with DefaultRepos
 {
   val netty = "org.jboss.netty" % "netty" % "3.2.5.Final"
-  val util_core = "com.twitter" % "util-core" % "1.12.4"
+  val util_core = "com.twitter" % "util-core_2.9.1" % "1.12.12"
 
   // for tests:
-  val specs = "org.scala-tools.testing" % "specs_2.8.1" % "1.6.7" % "test"
+  val specs = "org.scala-tools.testing" % "specs_2.9.1" % "1.6.9" % "test"
   val jmock = "org.jmock" % "jmock" % "2.4.0" % "test"
   val hamcrest_all = "org.hamcrest" % "hamcrest-all" % "1.1" % "test"
   val cglib = "cglib" % "cglib" % "2.1_3" % "test"
