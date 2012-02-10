@@ -1,8 +1,16 @@
+2.2.2
+-----
+release: 9 February 2012
+
+- Disallow using a singleton as a signal.
+
+
 2.2.1
 -----
 release: 29 November 2011
 
 - Allow a Channel to be closed with a Signalling class.
+
 
 2.2.0
 -----
