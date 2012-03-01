@@ -3,6 +3,7 @@
 release: 1 March 2012
 
 - Switch MemcacheRequest and MemcacheResponse to use ByteBuffer instead of Array[Byte]
+- Switch to scala 2.9.1
 
 2.2.2
 -----
