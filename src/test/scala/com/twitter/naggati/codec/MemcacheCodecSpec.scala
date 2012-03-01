@@ -18,6 +18,7 @@ package com.twitter.naggati
 package codec
 
 import com.twitter.util.Future
+import java.nio.ByteBuffer
 import org.jboss.netty.buffer.{ChannelBuffer, ChannelBuffers}
 import org.jboss.netty.channel.Channel
 import org.specs.Specification
@@ -77,7 +78,7 @@ class MemcacheCodecSpec extends Specification with JMocker {
     "write data response" in {
       val (codec, counter) = TestCodec(MemcacheCodec.readAscii, MemcacheCodec.writeAscii)
 
-      codec.send(new MemcacheResponse("VALUE foo 0 5", Some("hello".getBytes))) mustEqual
+      codec.send(new MemcacheResponse("VALUE foo 0 5", Some(ByteBuffer.wrap("hello".getBytes)))) mustEqual
         List("VALUE foo 0 5\r\nhello\r\nEND\r\n")
     }
 
@@ -100,7 +101,7 @@ class MemcacheCodecSpec extends Specification with JMocker {
 
       codec.send(new MemcacheResponse("OK") then Codec.Stream(channel)) mustEqual List("OK\r\n")
 
-      Future.join(channel.send(new MemcacheResponse("VALUE foo 0 5", Some("kitty".getBytes))))()
+      Future.join(channel.send(new MemcacheResponse("VALUE foo 0 5", Some(ByteBuffer.wrap("kitty".getBytes)))))()
       codec.getDownstream mustEqual List("OK\r\n", "VALUE foo 0 5\r\nkitty\r\nEND\r\n")
 
       Future.join(channel.send(new MemcacheResponse("END")))()
