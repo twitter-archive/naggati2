@@ -5,7 +5,7 @@ class NaggatiProject(info: ProjectInfo) extends StandardLibraryProject(info)
   with SubversionPublisher
   with DefaultRepos
 {
-  val netty = "org.jboss.netty" % "netty" % "3.2.5.Final"
+  val netty = "org.jboss.netty" % "netty" % "3.3.1.Final"
   val util_core = "com.twitter" % "util-core_2.9.1" % "1.12.12"
 
   // for tests:
