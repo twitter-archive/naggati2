@@ -1,3 +1,9 @@
+3.0.0
+-----
+release: 1 March 2012
+
+- Switch MemcacheRequest and MemcacheResponse to use ByteBuffer instead of Array[Byte]
+
 2.2.2
 -----
 release: 9 February 2012
