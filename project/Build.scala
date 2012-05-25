@@ -12,7 +12,7 @@ object Naggati extends Build {
   ).settings(
     name := "naggati",
     organization := "com.twitter",
-    version := "4.0.0",
+    version := "4.0.1-SNAPSHOT",
     scalaVersion := "2.9.2",
 
     // time-based tests cannot be run in parallel
