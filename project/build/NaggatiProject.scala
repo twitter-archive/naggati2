@@ -5,8 +5,8 @@ class NaggatiProject(info: ProjectInfo) extends StandardLibraryProject(info)
   with SubversionPublisher
   with DefaultRepos
 {
-  val netty = "io.netty" % "netty" % "3.3.1.Final"
-  val util_core = "com.twitter" % "util-core_2.9.1" % "1.12.12"
+  val netty = "io.netty" % "netty" % "3.3.1.Final" % "provided"
+  val util_core = "com.twitter" % "util-core" % "5.0.0" % "provided"
 
   // for tests:
   val specs = "org.scala-tools.testing" % "specs_2.9.1" % "1.6.9" % "test"
