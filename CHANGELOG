@@ -1,3 +1,9 @@
+4.0.0
+-----
+release: 25 March 2012
+
+- Upgrade to scala 2.9.2, sbt 0.11, and util-core 5.0.0.
+
 3.0.0
 -----
 release: 1 March 2012
