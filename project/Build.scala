@@ -15,10 +15,6 @@ object Naggati extends Build {
     version := "4.0.1-SNAPSHOT",
     scalaVersion := "2.9.2",
 
-    // time-based tests cannot be run in parallel
-//    logBuffered in Test := false,
-//    parallelExecution in Test := false,
-
     libraryDependencies ++= Seq(
       "com.twitter" % "util-core" % "5.0.0" % "provided",
       "io.netty" % "netty" % "3.3.1.Final" % "provided",
