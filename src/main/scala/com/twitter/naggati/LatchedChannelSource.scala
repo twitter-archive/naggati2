@@ -19,6 +19,7 @@ package com.twitter.naggati
 import com.twitter.concurrent.{Broker, Offer, Serialized}
 import com.twitter.util.{Future, Promise}
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.collection.JavaConversions._
 
@@ -30,14 +31,14 @@ class LatchedChannelSource[A] extends Serialized {
   @volatile private[this] var open = true
   private[this] val channelBroker = new Broker[A]
   private[this] val closeBroker = new Broker[Unit]
-  private[this] val numObserversBroker = new Broker[Int]
+  private[this] val observersAdded = new AtomicInteger(0)
 
   private[this] val observers =
     new JConcurrentMapWrapper(new ConcurrentHashMap[ConcreteObserver[A], ConcreteObserver[A]])
 
   protected[naggati] var buffer = new ListBuffer[A]
-  protected[naggati] var ready = false
-  protected[naggati] var closed = false
+  @volatile protected[naggati] var ready = false
+  @volatile protected[naggati] var closed = false
 
   /**
    * An object representing the lifecycle of subscribing to a LatchedChannelSource.
@@ -56,7 +57,6 @@ class LatchedChannelSource[A] extends Serialized {
     def dispose() {
       LatchedChannelSource.this.serialized {
         observers.remove(this)
-        numObserversBroker.send(observers.size).sync()
       }
     }
   }
@@ -88,37 +88,16 @@ class LatchedChannelSource[A] extends Serialized {
     serialized {
       if (open) {
         observers += observer -> observer
-        val numObservers = observers.size
-        numObserversBroker.send(numObservers).sync()
-        if (numObservers == 1) loop()
+        if (observersAdded.incrementAndGet == 1) {
+          // first observer -- deliver the buffer and handle delayed close
+          deliverBuffer()
+          if (!closed) loop()
+        }
       }
     }
 
     observer
   }
-
-  private def numObserversLoop() {
-    val numObserversOffer = numObserversBroker.recv
-    val offer = numObserversOffer {
-      case 1 =>
-        val nowClosed = synchronized {
-          if (!ready) {
-            buffer.foreach { item => channelBroker.send(item).sync() }
-            ready = true
-            if (closed) closeInternal()
-            closed
-          } else {
-            false
-          }
-        }
-        if (nowClosed) {
-          closeBroker.send(()).sync()
-        }
-      case _ => numObserversLoop()
-    }
-    offer.sync()
-  }
-  numObserversLoop()
 
   // if the channel isn't ready yet, execute some code inside the lock.
   // return whether the channel was ready: true = channel ready; false = code was executed
@@ -155,5 +134,14 @@ class LatchedChannelSource[A] extends Serialized {
     }
   }
 
-
+  private[this] def deliverBuffer() {
+    synchronized {
+      if (!ready) {
+        buffer.foreach { item => observers.keys.foreach { _(item) } }
+        buffer.clear()
+        ready = true
+        if (closed) closeInternal()
+      }
+    }
+  }
 }
