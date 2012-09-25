@@ -16,7 +16,7 @@ object Naggati extends Build {
     scalaVersion := "2.9.2",
 
     libraryDependencies ++= Seq(
-      "com.twitter" % "util-core" % "5.0.0" % "provided",
+      "com.twitter" % "util-core" % "5.3.10" % "provided",
       "io.netty" % "netty" % "3.3.1.Final" % "provided",
 
       // for tests only:

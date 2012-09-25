@@ -16,33 +16,109 @@
 
 package com.twitter.naggati
 
-import java.util.concurrent.CountDownLatch
-import scala.collection.mutable
-import com.twitter.concurrent.{ChannelSource, Observer}
-import com.twitter.util.Future
+import com.twitter.concurrent.{Broker, Offer, Serialized}
+import com.twitter.util.{Future, Promise}
+import java.util.concurrent.ConcurrentHashMap
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.JavaConversions._
 
 /**
- * A `ChannelSource` that buffers all posted messages until there is at least one receiver.
+ * LatchedChannelSource buffers all posted messages until there is at least one receiver.
  * As soon as there is at least one receiver, it latches open and never buffers again.
  */
-class LatchedChannelSource[A] extends ChannelSource[A] {
-  protected[naggati] var buffer = new mutable.ListBuffer[A]
+class LatchedChannelSource[A] extends Serialized {
+  @volatile private[this] var open = true
+  private[this] val channelBroker = new Broker[A]
+  private[this] val closeBroker = new Broker[Unit]
+  private[this] val numObserversBroker = new Broker[Int]
+
+  private[this] val observers =
+    new JConcurrentMapWrapper(new ConcurrentHashMap[ConcreteObserver[A], ConcreteObserver[A]])
+
+  protected[naggati] var buffer = new ListBuffer[A]
   protected[naggati] var ready = false
   protected[naggati] var closed = false
 
-  numObservers.respond {
-    case 1 =>
-      synchronized {
-        if (!ready) {
-          buffer.foreach { item => super.send(item) }
-          ready = true
-          if (closed) {
-            super.close()
+  /**
+   * An object representing the lifecycle of subscribing to a LatchedChannelSource.
+   * This object can be used to unsubscribe.
+   */
+  trait Observer[A] {
+    /**
+     * Indicates that the Observer is no longer interested in receiving
+     * messages.
+     */
+    def dispose()
+  }
+
+  private[this] class ConcreteObserver[A](listener: A => Future[Unit]) extends Observer[A] {
+    def apply(a: A) = { listener(a) }
+    def dispose() {
+      LatchedChannelSource.this.serialized {
+        observers.remove(this)
+        numObserversBroker.send(observers.size).sync()
+      }
+    }
+  }
+
+  private[this] val _closes =  new Promise[Unit]
+  val closes: Future[Unit] = _closes
+
+  def isOpen = open
+
+  def respond(listener: A => Future[Unit]): Observer[A] = {
+    val observer = new ConcreteObserver(listener)
+    def loop() {
+      val closeOffer = closeBroker.recv
+
+      val channelOffer = channelBroker.recv { a =>
+        val observersCopy = new ArrayBuffer[ConcreteObserver[A]]
+        observers.keys.copyToBuffer(observersCopy)
+        observersCopy.foreach { _(a) }
+        loop()
+      }
+
+      // sequence to ensure channel gets priority over close
+      val offer = channelOffer orElse {
+        Offer.choose(channelOffer, closeOffer)
+      }
+      offer.sync()
+    }
+
+    serialized {
+      if (open) {
+        observers += observer -> observer
+        val numObservers = observers.size
+        numObserversBroker.send(numObservers).sync()
+        if (numObservers == 1) loop()
+      }
+    }
+
+    observer
+  }
+
+  private def numObserversLoop() {
+    val numObserversOffer = numObserversBroker.recv
+    val offer = numObserversOffer {
+      case 1 =>
+        val nowClosed = synchronized {
+          if (!ready) {
+            buffer.foreach { item => channelBroker.send(item).sync() }
+            ready = true
+            if (closed) closeInternal()
+            closed
+          } else {
+            false
           }
         }
-      }
-      Future.Done
+        if (nowClosed) {
+          closeBroker.send(()).sync()
+        }
+      case _ => numObserversLoop()
+    }
+    offer.sync()
   }
+  numObserversLoop()
 
   // if the channel isn't ready yet, execute some code inside the lock.
   // return whether the channel was ready: true = channel ready; false = code was executed
@@ -53,18 +129,31 @@ class LatchedChannelSource[A] extends ChannelSource[A] {
     }
   }
 
-  override def close() {
-    // don't allow a close() to take effect until after we latch.
-    if (checkReady { closed = true }) {
-      super.close()
+  private[this] def closeInternal() {
+    serialized {
+      if (open) {
+        open = false
+        _closes.setValue(())
+        observers.clear()
+      }
     }
   }
 
-  override def send(a: A): Seq[Future[Observer]] = {
+  def close() {
+    // don't allow a close() to take effect until after we latch.
+    if (checkReady { closed = true }) {
+      closeInternal()
+      closeBroker.send(()).sync()
+    }
+  }
+
+  def send(a: A): Seq[Future[Unit]] = {
     if (checkReady { buffer += a }) {
-      super.send(a)
+      Seq(channelBroker.send(a).sync())
     } else {
       Seq()
     }
   }
+
+
 }
