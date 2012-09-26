@@ -1,3 +1,9 @@
+4.0.1
+-----
+release: 26 September 2012
+
+- Upgrade to util-core 5.3.11 and rewrite LatchedChannelSource
+
 4.0.0
 -----
 release: 25 March 2012

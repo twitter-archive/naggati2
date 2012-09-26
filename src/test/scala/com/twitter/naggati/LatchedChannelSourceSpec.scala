@@ -17,7 +17,7 @@
 package com.twitter.naggati
 
 import scala.collection.mutable
-import com.twitter.util.Future
+import com.twitter.util.{Future, FuturePool}
 import org.specs.Specification
 
 class LatchedChannelSourceSpec extends Specification {
@@ -82,6 +82,33 @@ class LatchedChannelSourceSpec extends Specification {
       }
       received.toList mustEqual List("hello")
       channel.isOpen mustEqual false
+    }
+
+    "keep items in order after latching" in {
+      val channel = new LatchedChannelSource[String]
+      var received = new mutable.ListBuffer[String]
+      val expected = List("a", "b", "c", "d", "e", "f", "g", "h", "i")
+
+      def add(items: List[String]) {
+        items match {
+          case head :: tail =>
+            channel.send(head)
+            add(tail)
+          case Nil =>
+        }
+      }
+
+      channel.respond { s =>
+        received += s
+        Thread.sleep(100)
+        Future.Done
+      }
+
+      add(expected)
+
+      channel.close()
+      channel.closes()
+      received.toList mustEqual expected
     }
   }
 }
