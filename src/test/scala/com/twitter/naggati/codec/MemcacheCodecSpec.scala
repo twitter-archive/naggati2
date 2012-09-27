@@ -101,10 +101,11 @@ class MemcacheCodecSpec extends Specification with JMocker {
 
       codec.send(new MemcacheResponse("OK") then Codec.Stream(channel)) mustEqual List("OK\r\n")
 
-      Future.join(channel.send(new MemcacheResponse("VALUE foo 0 5", Some(ByteBuffer.wrap("kitty".getBytes)))))()
+      channel.send(new MemcacheResponse("VALUE foo 0 5", Some(ByteBuffer.wrap("kitty".getBytes))))()
+
       codec.getDownstream mustEqual List("OK\r\n", "VALUE foo 0 5\r\nkitty\r\nEND\r\n")
 
-      Future.join(channel.send(new MemcacheResponse("END")))()
+      channel.send(new MemcacheResponse("END"))()
       codec.getDownstream mustEqual List("OK\r\n", "VALUE foo 0 5\r\nkitty\r\nEND\r\n", "END\r\n")
     }
   }

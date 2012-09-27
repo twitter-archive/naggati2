@@ -25,10 +25,8 @@ class LatchedChannelSourceSpec extends Specification {
     "buffer when there are no receivers" in {
       val channel = new LatchedChannelSource[String]
       channel.send("hello")
-      channel.ready mustEqual false
       channel.buffer.size mustEqual 1
       channel.send("goodbye")
-      channel.ready mustEqual false
       channel.buffer.size mustEqual 2
     }
 
@@ -36,7 +34,6 @@ class LatchedChannelSourceSpec extends Specification {
       val channel = new LatchedChannelSource[String]
       channel.send("hello")
       channel.send("kitty")
-      channel.ready mustEqual false
       channel.buffer.size mustEqual 2
 
       var received = new mutable.ListBuffer[String]
@@ -45,13 +42,11 @@ class LatchedChannelSourceSpec extends Specification {
         Future.Done
       }
       received.toList mustEqual List("hello", "kitty")
-      channel.ready mustEqual true
     }
 
-    "not buffer after the channel is latched" in {
+    "not buffer after the channel is observed" in {
       val channel = new LatchedChannelSource[String]
       channel.send("hello")
-      channel.ready mustEqual false
       channel.buffer.size mustEqual 1
 
       var received = new mutable.ListBuffer[String]
@@ -60,20 +55,18 @@ class LatchedChannelSourceSpec extends Specification {
         Future.Done
       }
       received.toList mustEqual List("hello")
-      channel.ready mustEqual true
+      channel.buffer.size mustEqual 0
 
       channel.send("kitty")
       received.toList mustEqual List("hello", "kitty")
-      channel.ready mustEqual true
+      channel.buffer.size mustEqual 0
     }
 
-    "not actually close until the channel is latched" in {
+    "not actually close until the channel is observed" in {
       val channel = new LatchedChannelSource[String]
       channel.send("hello")
       channel.close()
-      channel.ready mustEqual false
       channel.buffer.size mustEqual 1
-      channel.isOpen mustEqual true
 
       var received = new mutable.ListBuffer[String]
       channel.respond { s =>
@@ -81,7 +74,6 @@ class LatchedChannelSourceSpec extends Specification {
         Future.Done
       }
       received.toList mustEqual List("hello")
-      channel.isOpen mustEqual false
     }
 
     "keep items in order after latching" in {
@@ -100,7 +92,6 @@ class LatchedChannelSourceSpec extends Specification {
 
       channel.respond { s =>
         received += s
-        Thread.sleep(100)
         Future.Done
       }
 
