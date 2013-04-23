@@ -12,7 +12,7 @@ object Naggati extends Build {
   ).settings(
     name := "naggati",
     organization := "com.twitter",
-    version := "4.1.1",
+    version := "4.1.2-SNAPSHOT",
     scalaVersion := "2.9.2",
 
     libraryDependencies ++= Seq(
